@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patchletter Studio</title>
+  <style>
+    :root {
+      --panel: rgba(15, 23, 42, 0.82);
+      --surface: rgba(255, 255, 255, 0.06);
+      --surface-white: #fbfaf7;
+      --line: rgba(255, 255, 255, 0.08);
+      --ink: #e5eef8;
+      --ink-soft: #9fb0c7;
+      --navy: #0f172a;
+      --gold: #f59e0b;
+      --gold-deep: #b45309;
+      --mint: #34d399;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --content-width: min(1520px, calc(100% - 28px));
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(245, 158, 11, 0.24), transparent 24%),
+        radial-gradient(circle at 100% 0%, rgba(96, 165, 250, 0.16), transparent 24%),
+        radial-gradient(circle at 50% 120%, rgba(167, 139, 250, 0.12), transparent 36%),
+        linear-gradient(180deg, #0b1020 0%, #0d1117 56%, #0a0f18 100%);
+      font-family: "Aptos", "Segoe UI", "Malgun Gothic", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(circle at center, black 40%, transparent 92%);
+    }
+
+    button,
+    textarea,
+    details,
+    summary {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, background 0.18s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    code {
+      background: rgba(148, 163, 184, 0.14);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font: 0.92em "Consolas", "Courier New", monospace;
+    }
+
+    h1,
+    h2,
+    h3,
+    p,
+    ul {
+      margin: 0;
+    }
+
+    ul {
+      padding-left: 18px;
+    }
+
+    .app-shell {
+      width: var(--content-width);
+      margin: 20px auto 40px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .topbar,
+    .panel,
+    .hero-card,
+    .hero-side {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .topbar {
+      padding: 18px 20px;
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+    }
+
+    .topbar__row,
+    .status-bar,
+    .brand,
+    .topbar__actions,
+    .panel-header,
+    .panel-header__meta,
+    .editor-tools,
+    .hero-chips,
+    .mini-list {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .topbar__row,
+    .panel-header {
+      justify-content: space-between;
+    }
+
+    .brand {
+      gap: 14px;
+    }
+
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.98), rgba(180, 83, 9, 0.98));
+      color: white;
+      font-size: 20px;
+      font-weight: 900;
+      box-shadow: 0 12px 26px rgba(180, 83, 9, 0.38);
+    }
+
+    .brand-copy {
+      display: grid;
+      gap: 4px;
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #f6c86c;
+      font-weight: 800;
+    }
+
+    .brand-copy strong {
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .brand-copy span,
+    .status-bar,
+    .panel-header p,
+    .panel-note,
+    .panel-copy,
+    .summary-list li,
+    .patch-log li,
+    .history-caption {
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .button-primary,
+    .button-secondary,
+    .button-ghost,
+    .tool-chip {
+      border-radius: 999px;
+      padding: 11px 16px;
+      font-weight: 800;
+    }
+
+    .button-primary {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #111827;
+      box-shadow: 0 10px 22px rgba(245, 158, 11, 0.28);
+    }
+
+    .button-secondary {
+      background: rgba(248, 250, 252, 0.08);
+      color: var(--ink);
+      border: 1px solid rgba(248, 250, 252, 0.12);
+    }
+
+    .button-ghost {
+      background: rgba(96, 165, 250, 0.1);
+      color: #c7dcff;
+      border: 1px solid rgba(96, 165, 250, 0.24);
+      padding-inline: 12px;
+    }
+
+    .status-pill,
+    .chip,
+    .mini-badge {
+      border-radius: 999px;
+      font-weight: 700;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: rgba(52, 211, 153, 0.12);
+      color: #b9f6df;
+      border: 1px solid rgba(52, 211, 153, 0.22);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .chip {
+      padding: 9px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e6eef8;
+      font-size: 13px;
+    }
+
+    .chip strong {
+      color: #f8d58f;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .mini-badge {
+      padding: 6px 10px;
+      font-size: 12px;
+      background: rgba(245, 158, 11, 0.12);
+      color: #ffd89a;
+      border: 1px solid rgba(245, 158, 11, 0.18);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.35fr 0.85fr;
+      gap: 18px;
+    }
+
+    .hero-card,
+    .hero-side,
+    .panel {
+      padding: 18px;
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero-copy h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.4rem, 4vw, 4.4rem);
+      line-height: 0.98;
+      letter-spacing: -0.03em;
+      max-width: 11ch;
+    }
+
+    .hero-copy p {
+      color: var(--ink-soft);
+      line-height: 1.72;
+      max-width: 72ch;
+      font-size: 15px;
+    }
+
+    .hero-side {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .hero-side h2,
+    .panel-header h2 {
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .scoreboard,
+    .workspace,
+    .inspectors,
+    .insights-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .scoreboard {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .score,
+    .stat-card,
+    .log-box,
+    .history-box,
+    .helper-box,
+    .inspect-box,
+    .mail-shell {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .score,
+    .stat-card,
+    .log-box,
+    .history-box,
+    .helper-box,
+    .inspect-box {
+      padding: 14px;
+    }
+
+    .score span,
+    .stat-card span {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 7px;
+    }
+
+    .score strong {
+      font-size: 1.9rem;
+      font-weight: 900;
+      color: white;
+    }
+
+    .workspace {
+      grid-template-columns: 1.06fr 1.1fr 0.78fr;
+      align-items: start;
+    }
+
+    .inspectors {
+      grid-template-columns: 1fr 1fr 0.9fr;
+      align-items: start;
+    }
+  </style>
+  <style>
+    .mail-shell__bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .mail-shell__dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mail-shell__dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .mail-shell__dots span:nth-child(1) { background: #fb7185; }
+    .mail-shell__dots span:nth-child(2) { background: #fbbf24; }
+    .mail-shell__dots span:nth-child(3) { background: #34d399; }
+
+    .dom-area {
+      min-height: 660px;
+      max-height: 760px;
+      overflow: auto;
+      padding: 18px;
+      background:
+        radial-gradient(circle at top, rgba(245, 158, 11, 0.08), transparent 24%),
+        linear-gradient(180deg, rgba(248, 250, 252, 0.03), rgba(248, 250, 252, 0.02));
+    }
+
+    .preview-frame {
+      transition: box-shadow 0.28s ease, transform 0.28s ease;
+    }
+
+    .preview-frame.flash {
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4), 0 20px 45px rgba(245, 158, 11, 0.12);
+      transform: translateY(-2px);
+    }
+
+    .editor-tools {
+      margin-top: -2px;
+    }
+
+    .tool-chip {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--ink);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+
+    .tool-chip.template {
+      background: rgba(96, 165, 250, 0.12);
+      border-color: rgba(96, 165, 250, 0.22);
+      color: #d5e7ff;
+    }
+
+    .editor-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .editor-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 410px;
+      resize: vertical;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      background: #08111d;
+      color: #e6edf6;
+      padding: 16px 18px;
+      font: 13px/1.7 "Cascadia Code", Consolas, "Courier New", monospace;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    }
+
+    textarea:focus {
+      outline: 2px solid rgba(96, 165, 250, 0.38);
+      outline-offset: 0;
+    }
+
+    .insights-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat-card strong {
+      font-size: 1.55rem;
+      color: white;
+      font-weight: 900;
+    }
+
+    .stat-card small {
+      display: block;
+      margin-top: 7px;
+      color: var(--ink-soft);
+      font-size: 12px;
+    }
+
+    .patch-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .patch-pill {
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: white;
+    }
+
+    .patch-pill.insert { color: #b9f6df; border-color: rgba(52, 211, 153, 0.24); background: rgba(52, 211, 153, 0.12); }
+    .patch-pill.remove { color: #ffc3cf; border-color: rgba(251, 113, 133, 0.24); background: rgba(251, 113, 133, 0.12); }
+    .patch-pill.replace { color: #ddd1ff; border-color: rgba(167, 139, 250, 0.24); background: rgba(167, 139, 250, 0.12); }
+    .patch-pill.props { color: #cbe0ff; border-color: rgba(96, 165, 250, 0.24); background: rgba(96, 165, 250, 0.12); }
+    .patch-pill.text { color: #d2fff6; border-color: rgba(45, 212, 191, 0.24); background: rgba(45, 212, 191, 0.12); }
+
+    .patch-log {
+      margin: 0;
+      padding-left: 18px;
+      max-height: 250px;
+      overflow: auto;
+    }
+
+    .patch-log .insert { color: #9ef0cf; }
+    .patch-log .remove { color: #ffb7c2; }
+    .patch-log .replace { color: #d3c5ff; }
+    .patch-log .props { color: #bfd8ff; }
+    .patch-log .text { color: #bff7ee; }
+
+    .history-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+      max-height: 300px;
+      overflow: auto;
+    }
+
+    .history-button {
+      width: 100%;
+      text-align: left;
+      border-radius: 18px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--ink);
+      display: grid;
+      gap: 4px;
+    }
+
+    .history-button.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(96, 165, 250, 0.12));
+      border-color: rgba(245, 158, 11, 0.32);
+      box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.14);
+    }
+
+    .history-button strong {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    details {
+      width: 100%;
+    }
+
+    summary {
+      list-style: none;
+      cursor: pointer;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 12px;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 12.5px/1.7 "Cascadia Code", Consolas, "Courier New", monospace;
+      color: #d7e4f3;
+      max-height: 440px;
+      overflow: auto;
+    }
+
+    .tree-box {
+      margin-top: 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    .tree-box h3 {
+      font-size: 0.95rem;
+      margin-bottom: 10px;
+    }
+
+    .vdom-tree {
+      display: grid;
+      gap: 8px;
+      max-height: 340px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .tree-node {
+      position: relative;
+      padding-left: 18px;
+    }
+
+    .tree-node::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 0;
+      bottom: -8px;
+      width: 1px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .tree-node:last-child::before {
+      bottom: 18px;
+    }
+
+    .tree-branch {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      min-height: 28px;
+    }
+
+    .tree-label,
+    .tree-props,
+    .tree-text {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tree-label {
+      background: rgba(96, 165, 250, 0.16);
+      color: #d7e8ff;
+      border: 1px solid rgba(96, 165, 250, 0.22);
+    }
+
+    .tree-props {
+      background: rgba(245, 158, 11, 0.12);
+      color: #ffe0aa;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      font-family: "Cascadia Code", Consolas, monospace;
+    }
+
+    .tree-text {
+      background: rgba(52, 211, 153, 0.12);
+      color: #c5ffe7;
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+
+    .tree-children {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+      padding-left: 8px;
+    }
+  </style>
+  <style>
+    .newsletter {
+      width: min(100%, 760px);
+      margin: 0 auto;
+      background: var(--surface-white);
+      color: var(--navy);
+      border-radius: 30px;
+      overflow: hidden;
+      box-shadow: 0 28px 55px rgba(8, 15, 28, 0.18);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .newsletter-topline {
+      padding: 16px 22px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .newsletter-main {
+      padding: 28px;
+      display: grid;
+      gap: 22px;
+      background:
+        radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 28%),
+        linear-gradient(180deg, #fffcf7 0%, #fff8ef 100%);
+    }
+
+    .newsletter-hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .hero-copy-card {
+      display: grid;
+      gap: 14px;
+    }
+
+    .newsletter-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--gold-deep);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 800;
+    }
+
+    .newsletter-title {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 3vw, 3.3rem);
+      line-height: 0.98;
+      letter-spacing: -0.035em;
+      color: #0f172a;
+    }
+
+    .newsletter-lead {
+      color: #4b5563;
+      line-height: 1.75;
+      font-size: 15px;
+    }
+
+    .newsletter-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .newsletter-button,
+    .newsletter-button--ghost {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 16px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .newsletter-button {
+      background: #111827;
+      color: #fff7ed;
+      box-shadow: 0 14px 26px rgba(17, 24, 39, 0.16);
+    }
+
+    .newsletter-button--ghost {
+      background: rgba(15, 23, 42, 0.06);
+      color: #111827;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    .newsletter-visual {
+      border-radius: 28px;
+      overflow: hidden;
+      min-height: 280px;
+      background:
+        radial-gradient(circle at top right, rgba(251, 191, 36, 0.56), transparent 20%),
+        linear-gradient(135deg, #111827 0%, #1f2937 42%, #172554 100%);
+      color: white;
+      display: grid;
+      align-content: space-between;
+      padding: 22px;
+    }
+
+    .visual-orbit {
+      display: grid;
+      gap: 10px;
+    }
+
+    .visual-pill {
+      display: inline-flex;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .visual-board {
+      display: grid;
+      gap: 10px;
+      padding: 18px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .visual-row {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 10px;
+    }
+
+    .visual-card,
+    .visual-chart {
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .visual-card strong,
+    .visual-chart strong {
+      display: block;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+
+    .visual-card p,
+    .visual-chart p {
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.84);
+    }
+
+    .visual-bars {
+      display: grid;
+      gap: 7px;
+    }
+
+    .visual-bars span {
+      display: block;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.92), rgba(251, 191, 36, 0.5));
+      width: 100%;
+    }
+
+    .visual-bars span:nth-child(2) { width: 82%; }
+    .visual-bars span:nth-child(3) { width: 64%; }
+    .visual-bars span:nth-child(4) { width: 48%; }
+
+    .newsletter-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .newsletter-meta li {
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(15, 23, 42, 0.06);
+      color: #334155;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+    }
+  </style>
+  <style>
+    .newsletter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .story-card,
+    .insight-card,
+    .sponsor-card {
+      border-radius: 24px;
+      background: #ffffff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    .story-card h3,
+    .insight-card h3,
+    .sponsor-card h3,
+    .newsletter-section h3 {
+      margin-bottom: 10px;
+      font-size: 1.06rem;
+    }
+
+    .story-card p,
+    .insight-card p,
+    .newsletter-section p,
+    .newsletter-section li,
+    .sponsor-card p {
+      color: #475569;
+      line-height: 1.68;
+      font-size: 14px;
+    }
+
+    .story-card strong,
+    .insight-card strong,
+    .sponsor-card strong {
+      display: inline-flex;
+      margin-bottom: 10px;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--gold-deep);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .newsletter-section {
+      display: grid;
+      gap: 14px;
+      padding-top: 8px;
+    }
+
+    .newsletter-section--wide {
+      padding: 24px;
+      border-radius: 30px;
+      background: linear-gradient(135deg, rgba(17, 24, 39, 0.98), rgba(30, 41, 59, 0.96));
+      color: white;
+      overflow: hidden;
+      position: relative;
+      isolation: isolate;
+    }
+
+    .newsletter-section--wide::after {
+      content: "";
+      position: absolute;
+      inset: auto -30px -60px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.42), transparent 64%);
+      z-index: -1;
+    }
+
+    .newsletter-section--wide p,
+    .newsletter-section--wide li {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .wide-grid {
+      display: grid;
+      grid-template-columns: 1fr 0.8fr;
+      gap: 16px;
+    }
+
+    .note-list {
+      display: grid;
+      gap: 10px;
+      list-style: none;
+      padding: 0;
+    }
+
+    .note-list li {
+      border-radius: 18px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .newsletter-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 12px;
+      border-top: 1px solid rgba(15, 23, 42, 0.08);
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1280px) {
+      .workspace,
+      .inspectors,
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .dom-area {
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .newsletter-hero,
+      .newsletter-grid,
+      .wide-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app-shell {
+        width: min(100% - 16px, 100%);
+        margin-top: 12px;
+      }
+
+      .topbar,
+      .hero-card,
+      .hero-side,
+      .panel {
+        padding: 16px;
+        border-radius: 22px;
+      }
+
+      .scoreboard,
+      .insights-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .newsletter-main {
+        padding: 18px;
+      }
+
+      .dom-area {
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="topbar__row">
+        <div class="brand">
+          <div class="brand-mark">P</div>
+          <div class="brand-copy">
+            <span class="eyebrow">Patchletter Studio</span>
+            <strong>Virtual DOM Newsletter Editor</strong>
+            <span>발행본과 편집본을 나눠서 관리하고, Patch로 변경분만 반영하는 실전형 데모</span>
+          </div>
+        </div>
+        <div class="topbar__actions">
+          <button id="patchButton" class="button-primary">Patch 발행</button>
+          <button id="undoButton" class="button-secondary">이전 버전</button>
+          <button id="redoButton" class="button-secondary">다음 버전</button>
+          <button id="resetButton" class="button-ghost">초기 샘플 복원</button>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span class="status-pill"><span class="status-dot"></span>Ready to Publish</span>
+        <span id="statusText">발행된 뉴스레터 DOM을 읽어 초기 Virtual DOM을 만들었습니다.</span>
+      </div>
+    </header>
+
+    <section class="hero">
+      <article class="hero-card">
+        <div class="hero-copy">
+          <div class="eyebrow">Newsletter Workflow</div>
+          <h1>실제 발행 툴처럼 보이지만, 안에서는 Virtual DOM이 일합니다.</h1>
+          <p>
+            이 페이지는 바닐라 JavaScript만으로 만든 뉴스레터 에디터입니다. 발행본 DOM을 먼저 Virtual DOM으로 바꾸고,
+            편집 중 HTML을 다시 읽어 새 Virtual DOM을 만든 뒤, Diff 알고리즘으로 변경점을 계산하고 실제 DOM에는 바뀐 부분만 Patch합니다.
+          </p>
+          <div class="hero-chips">
+            <span class="chip"><strong>step 1</strong> Published DOM -> VDOM</span>
+            <span class="chip"><strong>step 2</strong> Editor HTML -> New VDOM</span>
+            <span class="chip"><strong>step 3</strong> Diff 5 Cases</span>
+            <span class="chip"><strong>step 4</strong> Patch + History</span>
+          </div>
+        </div>
+      </article>
+
+      <aside class="hero-side">
+        <div>
+          <h2>이 데모에서 보이는 것</h2>
+          <p>과제 요구사항인 실제 영역, 테스트 영역, Patch, Undo/Redo, DOM -> Virtual DOM, Diff, 실제 DOM 반영 흐름을 모두 한 화면에서 보여줍니다.</p>
+        </div>
+        <div class="scoreboard">
+          <div class="score">
+            <span>Tech Stack</span>
+            <strong>HTML</strong>
+          </div>
+          <div class="score">
+            <span>Diff Cases</span>
+            <strong>5</strong>
+          </div>
+          <div class="score">
+            <span>History</span>
+            <strong>Undo</strong>
+          </div>
+          <div class="score">
+            <span>Render</span>
+            <strong>Patch</strong>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="workspace">
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>실제 영역</h2>
+            <p>현재 발행된 뉴스레터입니다. Patch를 누르면 Diff로 계산된 변경점만 이 DOM에 반영됩니다.</p>
+          </div>
+          <div class="panel-header__meta">
+            <span class="mini-badge">Published</span>
+            <span class="mini-badge" id="publishedStamp">Version 1</span>
+          </div>
+        </div>
+        <div class="mail-shell">
+          <div class="mail-shell__bar">
+            <div class="mail-shell__dots"><span></span><span></span><span></span></div>
+            <span>newsletter@patchletter.studio</span>
+          </div>
+          <div class="dom-area preview-frame real-dom" id="realRoot"></div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>테스트 영역</h2>
+            <p>편집 중인 뉴스레터 미리보기와 HTML 에디터입니다. 텍스트, 카드, 버튼, 섹션을 바꿔서 Patch를 시험해보세요.</p>
+          </div>
+          <div class="panel-header__meta">
+            <span class="mini-badge">Editor</span>
+            <span class="mini-badge">Live Preview</span>
+          </div>
+        </div>
+        <div class="mail-shell">
+          <div class="mail-shell__bar">
+            <div class="mail-shell__dots"><span></span><span></span><span></span></div>
+            <span>drafts / issue-editor.html</span>
+          </div>
+          <div class="dom-area test-dom" id="testRoot"></div>
+        </div>
+        <div class="editor-tools">
+          <button class="tool-chip template" type="button" data-template="main">기본 템플릿</button>
+          <button class="tool-chip template" type="button" data-template="event">이벤트 템플릿</button>
+          <button class="tool-chip" type="button" data-snippet="story">스토리 카드 추가</button>
+          <button class="tool-chip" type="button" data-snippet="note">하이라이트 섹션 추가</button>
+          <button class="tool-chip" type="button" data-snippet="cta">CTA 추가</button>
+          <button class="tool-chip" type="button" data-snippet="footer">푸터 링크 추가</button>
+        </div>
+        <div class="editor-stack">
+          <div class="editor-label">
+            <span>HTML Source</span>
+            <span>편집 소스를 바꾸면 새 Virtual DOM 후보가 즉시 갱신됩니다.</span>
+          </div>
+          <textarea id="htmlEditor" spellcheck="false"></textarea>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>운영 인사이트</h2>
+            <p>Patch 결과, Diff 타입, 현재 버전 히스토리, 발표용 요약을 모아둔 패널입니다.</p>
+          </div>
+        </div>
+        <div class="insights-grid">
+          <div class="stat-card">
+            <span>History</span>
+            <strong id="historyIndex">1 / 1</strong>
+            <small>현재 보고 있는 버전 위치</small>
+          </div>
+          <div class="stat-card">
+            <span>Patch Count</span>
+            <strong id="patchCount">0</strong>
+            <small>직전 발행에서 적용된 패치 수</small>
+          </div>
+          <div class="stat-card">
+            <span>Node Count</span>
+            <strong id="nodeCount">0</strong>
+            <small>현재 발행본 Virtual DOM 노드 수</small>
+          </div>
+          <div class="stat-card">
+            <span>Last Publish</span>
+            <strong id="publishTime">--:--</strong>
+            <small>마지막 Patch 발행 시각</small>
+          </div>
+        </div>
+        <div class="log-box">
+          <h3>Diff 5 Cases</h3>
+          <p class="panel-note">INSERT, REMOVE, REPLACE, PROPS, TEXT 케이스를 각각 집계합니다.</p>
+          <div class="patch-summary" id="patchSummary"></div>
+        </div>
+        <div class="log-box">
+          <h3>Patch Log</h3>
+          <ol class="patch-log" id="patchLog"></ol>
+        </div>
+        <div class="history-box">
+          <h3>Version History</h3>
+          <p class="history-caption">Patch가 끝날 때마다 새 Virtual DOM을 저장합니다. 아무 버전이나 눌러 복원할 수도 있습니다.</p>
+          <ul class="history-list" id="historyRail"></ul>
+        </div>
+        <div class="helper-box">
+          <h3>발표용 핵심 설명</h3>
+          <ul class="summary-list">
+            <li>실제 발행본 DOM을 읽어서 Virtual DOM 트리로 변환합니다.</li>
+            <li>편집 중인 HTML을 다시 읽어 새로운 Virtual DOM을 생성합니다.</li>
+            <li>Diff 알고리즘이 이전 트리와 새 트리를 비교해 최소 변경만 계산합니다.</li>
+            <li>Patch 단계에서 그 변경만 실제 DOM에 반영하고, 결과 상태를 History에 저장합니다.</li>
+            <li>Undo / Redo를 누르면 특정 Virtual DOM 상태로 이동하고 실제/테스트 영역도 함께 동기화됩니다.</li>
+          </ul>
+        </div>
+      </aside>
+    </section>
+
+    <section class="inspectors">
+      <article class="panel">
+        <div class="inspect-box">
+          <details open>
+            <summary>현재 Virtual DOM</summary>
+            <pre id="currentVdomView"></pre>
+            <div class="tree-box">
+              <h3>트리 시각화</h3>
+              <div class="vdom-tree" id="currentVdomTree"></div>
+            </div>
+          </details>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="inspect-box">
+          <details open>
+            <summary>다음 Virtual DOM</summary>
+            <pre id="nextVdomView"></pre>
+            <div class="tree-box">
+              <h3>트리 시각화</h3>
+              <div class="vdom-tree" id="nextVdomTree"></div>
+            </div>
+          </details>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="inspect-box">
+          <h2>왜 Virtual DOM을 쓰나?</h2>
+          <p class="panel-copy">
+            실제 DOM을 계속 직접 수정하면 브라우저는 레이아웃 계산과 다시 그리기를 반복할 수 있습니다.
+            이 데모는 먼저 메모리 안의 Virtual DOM에서 비교와 계산을 끝낸 뒤, 실제 DOM에는 필요한 최소 변경만 적용하는 방식을 보여줍니다.
+          </p>
+          <div class="mini-list">
+            <span class="chip"><strong>dom</strong> 트리 구조 객체</span>
+            <span class="chip"><strong>diff</strong> 차이점 계산</span>
+            <span class="chip"><strong>patch</strong> 변경점 적용</span>
+            <span class="chip"><strong>history</strong> 상태 복원</span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <template id="sampleTemplate">
+      <article class="newsletter" data-issue="24">
+        <div class="newsletter-topline">
+          <span>Patchletter / Product Dispatch</span>
+          <span>Issue 24 • Wednesday</span>
+        </div>
+        <div class="newsletter-main">
+          <section class="newsletter-hero">
+            <div class="hero-copy-card">
+              <p class="newsletter-kicker">Ship smarter with diff</p>
+              <h1 class="newsletter-title">Only patch what changed, and keep the rest of the page calm.</h1>
+              <p class="newsletter-lead">
+                이번 호는 뉴스레터 에디터를 주제로, 발행본 DOM을 Virtual DOM으로 바꾸고 편집본과 비교해
+                변경된 부분만 실제 DOM에 반영하는 흐름을 보여줍니다. 실무형 UI처럼 보이지만 핵심은 알고리즘 검증입니다.
+              </p>
+              <div class="newsletter-actions">
+                <a class="newsletter-button" href="#issue">이번 호 보기</a>
+                <a class="newsletter-button--ghost" href="#archive">지난 호 둘러보기</a>
+              </div>
+            </div>
+            <div class="newsletter-visual">
+              <div class="visual-orbit">
+                <span class="visual-pill">Realtime Issue Dashboard</span>
+              </div>
+              <div class="visual-board">
+                <div class="visual-row">
+                  <div class="visual-card">
+                    <strong>Patch Summary</strong>
+                    <div class="visual-bars">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
+                  <div class="visual-chart">
+                    <strong>Open Rate</strong>
+                    <p>41.2%</p>
+                  </div>
+                </div>
+                <div class="visual-card">
+                  <strong>Editor Note</strong>
+                  <p>텍스트, 버튼, 카드, 속성, footer 링크까지 바꿔가며 Diff 로그를 테스트해보세요.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <ul class="newsletter-meta">
+            <li>DOM -> VDOM</li>
+            <li>Diff 5 Cases</li>
+            <li>Patch Publish</li>
+            <li>Undo / Redo</li>
+            <li>Vanilla JavaScript</li>
+          </ul>
+
+          <section class="newsletter-grid">
+            <article class="story-card">
+              <strong>Main Story</strong>
+              <h3>왜 실제 DOM을 전부 다시 그리지 않을까?</h3>
+              <p>브라우저의 실제 DOM은 화면과 연결되어 있어 변경 비용이 큽니다. 그래서 먼저 Virtual DOM에서 차이점을 계산합니다.</p>
+            </article>
+            <article class="story-card">
+              <strong>Workflow</strong>
+              <h3>이전 트리와 새 트리를 비교하는 Diff</h3>
+              <p>루트부터 자식 노드까지 재귀적으로 내려가며 INSERT, REMOVE, REPLACE, PROPS, TEXT를 구분합니다.</p>
+            </article>
+            <article class="story-card">
+              <strong>Outcome</strong>
+              <h3>Patch는 필요한 부분만 실제 DOM에 반영</h3>
+              <p>계산이 끝나면 실제 발행본 뉴스레터에는 변경된 부분만 반영하고, 결과 상태는 History에 저장합니다.</p>
+            </article>
+          </section>
+
+          <section class="newsletter-section newsletter-section--wide">
+            <div class="wide-grid">
+              <div>
+                <h3>Editor Memo</h3>
+                <p>이 프로젝트는 React의 핵심 개념인 Virtual DOM, Diff, Patch, State History를 직접 구현해보는 과제입니다.</p>
+              </div>
+              <ul class="note-list">
+                <li>제목이나 본문만 바꾸면 TEXT 패치가 발생합니다.</li>
+                <li><code>href</code>, <code>class</code>, <code>data-*</code> 를 바꾸면 PROPS 패치가 발생합니다.</li>
+                <li>카드 섹션을 추가하거나 제거하면 INSERT, REMOVE 케이스를 확인할 수 있습니다.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="newsletter-section">
+            <article class="insight-card">
+              <strong>Team Note</strong>
+              <h3>발표 포인트</h3>
+              <p>발행본 DOM을 읽어서 Virtual DOM으로 바꾸고, 편집 중 HTML을 다시 읽어 새 트리를 만든 뒤, Diff 결과만 Patch한다는 흐름을 데모로 보여주면 됩니다.</p>
+            </article>
+          </section>
+
+          <footer class="newsletter-footer">
+            <span>Crafted for Wednesday Coding Day • Seoul</span>
+            <div class="footer-links">
+              <a href="#github">GitHub</a>
+              <a href="#archive">Archive</a>
+              <a href="#unsubscribe">Unsubscribe</a>
+            </div>
+          </footer>
+        </div>
+      </article>
+    </template>
+
+    <template id="eventTemplate">
+      <article class="newsletter" data-issue="25">
+        <div class="newsletter-topline">
+          <span>Patchletter / Event Edition</span>
+          <span>Live Session • Thursday</span>
+        </div>
+        <div class="newsletter-main">
+          <section class="newsletter-hero">
+            <div class="hero-copy-card">
+              <p class="newsletter-kicker">Special invitation</p>
+              <h1 class="newsletter-title">A launch invite shaped like a product memo.</h1>
+              <p class="newsletter-lead">
+                이벤트 전용 템플릿입니다. 같은 알고리즘 위에서 다른 콘텐츠 구조가 어떻게 Virtual DOM으로 표현되는지 비교하기 좋습니다.
+              </p>
+              <div class="newsletter-actions">
+                <a class="newsletter-button" href="#reserve">좌석 예약하기</a>
+                <a class="newsletter-button--ghost" href="#agenda">아젠다 확인</a>
+              </div>
+            </div>
+            <div class="newsletter-visual">
+              <div class="visual-orbit">
+                <span class="visual-pill">Launch Night Preview</span>
+              </div>
+              <div class="visual-board">
+                <div class="visual-card">
+                  <strong>Program</strong>
+                  <p>Product demo, engineering Q&amp;A, live patch showcase</p>
+                </div>
+                <div class="visual-row">
+                  <div class="visual-card">
+                    <strong>Seats</strong>
+                    <p>128 confirmed</p>
+                  </div>
+                  <div class="visual-chart">
+                    <strong>ETA</strong>
+                    <p>19:30</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <ul class="newsletter-meta">
+            <li>Event Landing</li>
+            <li>Button Prop Test</li>
+            <li>Card Insert Test</li>
+            <li>Footer Link Test</li>
+          </ul>
+
+          <section class="newsletter-grid">
+            <article class="story-card">
+              <strong>Venue</strong>
+              <h3>Seoul Forest Conference Hall</h3>
+              <p>현장 체크인, 네트워킹 라운지, 데모 부스를 하나의 템플릿 안에 담아 편집본과 발행본 차이를 비교해볼 수 있습니다.</p>
+            </article>
+            <article class="story-card">
+              <strong>Agenda</strong>
+              <h3>What we will show</h3>
+              <p>Diff 케이스, Patch 과정, State History와 Undo / Redo 복구 흐름까지 실제 UI에서 시연합니다.</p>
+            </article>
+            <article class="story-card">
+              <strong>Reminder</strong>
+              <h3>Bring your best edge cases</h3>
+              <p>노드 추가, 속성 수정, 문장 교체, 카드 삭제를 모두 넣어보면 더 설득력 있는 데모가 됩니다.</p>
+            </article>
+          </section>
+
+          <footer class="newsletter-footer">
+            <span>Hosted by Patchletter Studio</span>
+            <div class="footer-links">
+              <a href="#reserve">Reserve</a>
+              <a href="#faq">FAQ</a>
+              <a href="#share">Share</a>
+            </div>
+          </footer>
+        </div>
+      </article>
+    </template>
+  </main>
+  <script>
+    const realRoot = document.getElementById("realRoot");
+    const testRoot = document.getElementById("testRoot");
+    const htmlEditor = document.getElementById("htmlEditor");
+    const patchButton = document.getElementById("patchButton");
+    const undoButton = document.getElementById("undoButton");
+    const redoButton = document.getElementById("redoButton");
+    const resetButton = document.getElementById("resetButton");
+    const statusText = document.getElementById("statusText");
+    const historyIndexView = document.getElementById("historyIndex");
+    const patchCountView = document.getElementById("patchCount");
+    const nodeCountView = document.getElementById("nodeCount");
+    const publishTimeView = document.getElementById("publishTime");
+    const patchLog = document.getElementById("patchLog");
+    const patchSummary = document.getElementById("patchSummary");
+    const historyRail = document.getElementById("historyRail");
+    const currentVdomView = document.getElementById("currentVdomView");
+    const nextVdomView = document.getElementById("nextVdomView");
+    const currentVdomTree = document.getElementById("currentVdomTree");
+    const nextVdomTree = document.getElementById("nextVdomTree");
+    const publishedStamp = document.getElementById("publishedStamp");
+
+    const snippetLibrary = {
+      story: `
+        <article class="story-card">
+          <strong>New Story</strong>
+          <h3>이 카드도 Diff 테스트에 사용됩니다.</h3>
+          <p>Patch를 눌러 INSERT 케이스가 실제 발행본 DOM에 어떻게 반영되는지 확인해보세요.</p>
+        </article>`,
+      note: `
+        <section class="newsletter-section">
+          <article class="insight-card">
+            <strong>Highlight</strong>
+            <h3>새 하이라이트 섹션</h3>
+            <p>편집본 HTML에 섹션이 추가되면 새 Virtual DOM에서 INSERT 패치가 발생합니다.</p>
+          </article>
+        </section>`,
+      cta: `
+        <section class="newsletter-section">
+          <article class="sponsor-card">
+            <strong>CTA</strong>
+            <h3>Readers can act right here</h3>
+            <p>버튼 링크나 문구를 바꾸면 PROPS, TEXT 케이스를 확인할 수 있습니다.</p>
+            <div class="newsletter-actions">
+              <a class="newsletter-button" href="#new-action">새 액션 시작</a>
+            </div>
+          </article>
+        </section>`,
+      footer: `
+            <a href="#team">Team</a>`
+    };
+
+    let history = [];
+    let historyIndex = 0;
+    let currentVdom = null;
+    let currentTemplateId = "main";
+
+    function templateHTML(templateId = "main") {
+      const id = templateId === "event" ? "eventTemplate" : "sampleTemplate";
+      currentTemplateId = templateId === "event" ? "event" : "main";
+      return document.getElementById(id).innerHTML.trim();
+    }
+
+    function cloneData(data) {
+      return JSON.parse(JSON.stringify(data));
+    }
+
+    function nowLabel() {
+      return new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function setStatus(message) {
+      statusText.textContent = message;
+    }
+
+    function flashPublishedPane() {
+      realRoot.classList.remove("flash");
+      void realRoot.offsetWidth;
+      realRoot.classList.add("flash");
+      window.setTimeout(() => realRoot.classList.remove("flash"), 700);
+    }
+
+    function domNodeToVdom(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.replace(/\s+/g, " ");
+        if (!text.trim()) {
+          return null;
+        }
+        return { type: "#text", text: text.trim() };
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return null;
+      }
+
+      const props = {};
+      for (const attr of node.attributes) {
+        props[attr.name] = attr.value;
+      }
+
+      const children = Array.from(node.childNodes).map(domNodeToVdom).filter(Boolean);
+      return { type: node.tagName.toLowerCase(), props, children };
+    }
+
+    function containerToVdom(container) {
+      return {
+        type: "__root__",
+        props: {},
+        children: Array.from(container.childNodes).map(domNodeToVdom).filter(Boolean)
+      };
+    }
+
+    function vdomToDom(vnode) {
+      if (vnode.type === "#text") {
+        return document.createTextNode(vnode.text);
+      }
+
+      const el = document.createElement(vnode.type);
+      for (const [key, value] of Object.entries(vnode.props || {})) {
+        el.setAttribute(key, value);
+      }
+      for (const child of vnode.children || []) {
+        el.appendChild(vdomToDom(child));
+      }
+      return el;
+    }
+
+    function renderRoot(container, rootVdom) {
+      container.innerHTML = "";
+      for (const child of rootVdom.children || []) {
+        container.appendChild(vdomToDom(child));
+      }
+    }
+
+    function diffProps(oldProps = {}, newProps = {}) {
+      const changes = [];
+      const keys = new Set([...Object.keys(oldProps), ...Object.keys(newProps)]);
+
+      for (const key of keys) {
+        if (!(key in newProps)) {
+          changes.push({ key, value: null });
+        } else if (oldProps[key] !== newProps[key]) {
+          changes.push({ key, value: newProps[key] });
+        }
+      }
+
+      return changes;
+    }
+
+    function diff(oldNode, newNode, path = []) {
+      const patches = [];
+
+      if (!oldNode && newNode) {
+        patches.push({ type: "INSERT", path, node: cloneData(newNode) });
+        return patches;
+      }
+      if (oldNode && !newNode) {
+        patches.push({ type: "REMOVE", path });
+        return patches;
+      }
+      if (!oldNode || !newNode) {
+        return patches;
+      }
+      if (oldNode.type !== newNode.type) {
+        patches.push({ type: "REPLACE", path, node: cloneData(newNode) });
+        return patches;
+      }
+      if (oldNode.type === "#text" && newNode.type === "#text") {
+        if (oldNode.text !== newNode.text) {
+          patches.push({ type: "TEXT", path, text: newNode.text });
+        }
+        return patches;
+      }
+
+      const propChanges = diffProps(oldNode.props, newNode.props);
+      if (propChanges.length) {
+        patches.push({ type: "PROPS", path, props: propChanges });
+      }
+
+      const maxChildren = Math.max(oldNode.children.length, newNode.children.length);
+      for (let index = 0; index < maxChildren; index += 1) {
+        patches.push(...diff(oldNode.children[index], newNode.children[index], [...path, index]));
+      }
+      return patches;
+    }
+
+    function getNodeAtPath(root, path) {
+      let node = root;
+      for (const index of path) {
+        node = node && node.childNodes[index];
+        if (!node) {
+          return null;
+        }
+      }
+      return node;
+    }
+
+    function getParentAndIndex(root, path) {
+      return {
+        parent: path.length === 0 ? root : getNodeAtPath(root, path.slice(0, -1)),
+        index: path[path.length - 1]
+      };
+    }
+
+    function applyPatch(container, patch) {
+      if (patch.type === "INSERT") {
+        const { parent, index } = getParentAndIndex(container, patch.path);
+        if (!parent) return;
+        const newNode = vdomToDom(patch.node);
+        const reference = parent.childNodes[index] || null;
+        parent.insertBefore(newNode, reference);
+        return;
+      }
+
+      if (patch.type === "REMOVE") {
+        const target = getNodeAtPath(container, patch.path);
+        if (target && target.parentNode) {
+          target.parentNode.removeChild(target);
+        }
+        return;
+      }
+
+      if (patch.type === "REPLACE") {
+        const target = getNodeAtPath(container, patch.path);
+        if (target && target.parentNode) {
+          target.parentNode.replaceChild(vdomToDom(patch.node), target);
+        }
+        return;
+      }
+
+      const target = getNodeAtPath(container, patch.path);
+      if (!target) return;
+
+      if (patch.type === "TEXT") {
+        target.textContent = patch.text;
+        return;
+      }
+
+      if (patch.type === "PROPS") {
+        for (const change of patch.props) {
+          if (change.value === null) {
+            target.removeAttribute(change.key);
+          } else {
+            target.setAttribute(change.key, change.value);
+          }
+        }
+      }
+    }
+
+    function applyPatches(container, patches) {
+      for (const patch of patches) {
+        applyPatch(container, patch);
+      }
+    }
+
+    function createPreview(html) {
+      const host = document.createElement("div");
+      host.innerHTML = html.trim();
+      return host;
+    }
+
+    function countNodes(vnode) {
+      if (!vnode) return 0;
+      if (vnode.type === "#text") return 1;
+      return 1 + (vnode.children || []).reduce((sum, child) => sum + countNodes(child), 0);
+    }
+
+    function formatPath(path) {
+      return path.length ? path.join(" > ") : "root";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function renderVdomTreeNode(vnode) {
+      const nodeEl = document.createElement("div");
+      nodeEl.className = "tree-node";
+
+      const branch = document.createElement("div");
+      branch.className = "tree-branch";
+
+      const label = document.createElement("span");
+      label.className = "tree-label";
+      label.textContent = vnode.type === "#text" ? "#text" : `<${vnode.type}>`;
+      branch.appendChild(label);
+
+      if (vnode.type === "#text") {
+        const text = document.createElement("span");
+        text.className = "tree-text";
+        text.textContent = vnode.text;
+        branch.appendChild(text);
+      } else {
+        const props = Object.entries(vnode.props || {});
+        if (props.length) {
+          const propEl = document.createElement("span");
+          propEl.className = "tree-props";
+          propEl.textContent = props.map(([key, value]) => `${key}="${value}"`).join(" ");
+          branch.appendChild(propEl);
+        }
+      }
+
+      nodeEl.appendChild(branch);
+
+      if (vnode.children && vnode.children.length) {
+        const childrenEl = document.createElement("div");
+        childrenEl.className = "tree-children";
+        vnode.children.forEach((child) => {
+          childrenEl.appendChild(renderVdomTreeNode(child));
+        });
+        nodeEl.appendChild(childrenEl);
+      }
+
+      return nodeEl;
+    }
+
+    function renderVdomTree(container, rootVdom) {
+      container.innerHTML = "";
+      if (!rootVdom || !rootVdom.children || !rootVdom.children.length) {
+        container.innerHTML = "<div class=\"tree-text\">빈 트리</div>";
+        return;
+      }
+
+      rootVdom.children.forEach((child) => {
+        container.appendChild(renderVdomTreeNode(child));
+      });
+    }
+
+    function describePatch(patch) {
+      if (patch.type === "INSERT") {
+        return `<span class="insert">INSERT</span> path <code>${formatPath(patch.path)}</code> 에 <code>${patch.node.type}</code> 노드 추가`;
+      }
+      if (patch.type === "REMOVE") {
+        return `<span class="remove">REMOVE</span> path <code>${formatPath(patch.path)}</code> 의 노드 제거`;
+      }
+      if (patch.type === "REPLACE") {
+        return `<span class="replace">REPLACE</span> path <code>${formatPath(patch.path)}</code> 를 <code>${patch.node.type}</code> 로 교체`;
+      }
+      if (patch.type === "TEXT") {
+        return `<span class="text">TEXT</span> path <code>${formatPath(patch.path)}</code> 텍스트를 <code>${escapeHtml(patch.text)}</code> 로 변경`;
+      }
+
+      const detail = patch.props
+        .map((item) => (item.value === null ? `${item.key}: remove` : `${item.key}: ${escapeHtml(item.value)}`))
+        .join(", ");
+      return `<span class="props">PROPS</span> path <code>${formatPath(patch.path)}</code> 속성 변경 <code>${detail}</code>`;
+    }
+
+    function summarizePatches(patches) {
+      const counts = { INSERT: 0, REMOVE: 0, REPLACE: 0, PROPS: 0, TEXT: 0 };
+      for (const patch of patches) counts[patch.type] += 1;
+      return counts;
+    }
+
+    function renderPatchSummary(patches) {
+      const counts = summarizePatches(patches);
+      const types = [
+        ["INSERT", "insert"],
+        ["REMOVE", "remove"],
+        ["REPLACE", "replace"],
+        ["PROPS", "props"],
+        ["TEXT", "text"]
+      ];
+
+      patchSummary.innerHTML = "";
+      for (const [label, className] of types) {
+        const pill = document.createElement("span");
+        pill.className = `patch-pill ${className}`;
+        pill.textContent = `${label} ${counts[label]}`;
+        patchSummary.appendChild(pill);
+      }
+    }
+
+    function renderPatchLog(patches) {
+      patchLog.innerHTML = "";
+      if (!patches.length) {
+        patchLog.innerHTML = "<li>변경점이 없습니다. 실제 발행본 DOM 패치도 발생하지 않았습니다.</li>";
+        return;
+      }
+
+      for (const patch of patches) {
+        const li = document.createElement("li");
+        li.innerHTML = describePatch(patch);
+        patchLog.appendChild(li);
+      }
+    }
+
+    function renderHistoryRail() {
+      historyRail.innerHTML = "";
+      history.forEach((entry, index) => {
+        const li = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `history-button${index === historyIndex ? " active" : ""}`;
+        button.innerHTML = `
+          <strong>Version ${index + 1} · ${entry.label}</strong>
+          <span class="history-caption">${entry.timeLabel} · patches ${entry.patchCount} · nodes ${entry.nodeCount}</span>
+        `;
+        button.addEventListener("click", () => restoreFromHistory(index));
+        li.appendChild(button);
+        historyRail.appendChild(li);
+      });
+    }
+
+    function updateViews(nextVdom = currentVdom, patches = [], publishTime = null) {
+      currentVdomView.textContent = JSON.stringify(currentVdom, null, 2);
+      nextVdomView.textContent = JSON.stringify(nextVdom, null, 2);
+      renderVdomTree(currentVdomTree, currentVdom);
+      renderVdomTree(nextVdomTree, nextVdom);
+      patchCountView.textContent = String(patches.length);
+      nodeCountView.textContent = String(Math.max(countNodes(currentVdom) - 1, 0));
+      historyIndexView.textContent = `${historyIndex + 1} / ${history.length}`;
+      publishTimeView.textContent = publishTime || history[historyIndex]?.timeLabel || "--:--";
+      publishedStamp.textContent = `Version ${historyIndex + 1}`;
+      undoButton.disabled = historyIndex === 0;
+      redoButton.disabled = historyIndex >= history.length - 1;
+      renderPatchSummary(patches);
+      renderHistoryRail();
+    }
+
+    function syncTestFromEditor() {
+      const previewHost = createPreview(htmlEditor.value);
+      testRoot.innerHTML = previewHost.innerHTML;
+      const nextVdom = containerToVdom(testRoot);
+      nextVdomView.textContent = JSON.stringify(nextVdom, null, 2);
+      renderVdomTree(nextVdomTree, nextVdom);
+      return nextVdom;
+    }
+
+    function createHistoryEntry(vdom, label, patchCount) {
+      return {
+        vdom: cloneData(vdom),
+        label,
+        patchCount,
+        nodeCount: Math.max(countNodes(vdom) - 1, 0),
+        timeLabel: nowLabel()
+      };
+    }
+
+    function pushHistory(vdom, label, patchCount) {
+      history = history.slice(0, historyIndex + 1);
+      history.push(createHistoryEntry(vdom, label, patchCount));
+      historyIndex = history.length - 1;
+    }
+
+    function restoreFromHistory(index) {
+      historyIndex = index;
+      currentVdom = cloneData(history[index].vdom);
+      renderRoot(realRoot, currentVdom);
+      renderRoot(testRoot, currentVdom);
+      htmlEditor.value = testRoot.innerHTML.trim();
+      renderPatchLog([]);
+      updateViews(currentVdom, [], history[index].timeLabel);
+      setStatus(`Version ${index + 1} 발행 상태를 복원했습니다.`);
+      flashPublishedPane();
+    }
+
+    function loadTemplate(templateId) {
+      const html = templateHTML(templateId);
+      htmlEditor.value = html;
+      htmlEditor.dispatchEvent(new Event("input"));
+      setStatus(`${templateId === "event" ? "이벤트" : "기본"} 템플릿을 편집본에 불러왔습니다.`);
+    }
+
+    function insertSnippet(type) {
+      const snippet = snippetLibrary[type];
+      if (!snippet) return;
+
+      if (type === "footer") {
+        const footerPattern = /(<div class="footer-links">)([\s\S]*?)(<\/div>\s*<\/footer>)/;
+        if (footerPattern.test(htmlEditor.value)) {
+          htmlEditor.value = htmlEditor.value.replace(footerPattern, `$1$2${snippet}$3`);
+        } else {
+          htmlEditor.value += `\n${snippet}`;
+        }
+      } else {
+        const marker = "<footer class=\"newsletter-footer\">";
+        if (htmlEditor.value.includes(marker)) {
+          htmlEditor.value = htmlEditor.value.replace(marker, `${snippet}\n\n          ${marker}`);
+        } else {
+          htmlEditor.value += `\n${snippet}`;
+        }
+      }
+
+      htmlEditor.dispatchEvent(new Event("input"));
+      setStatus(`${type} 스니펫을 편집본 HTML에 추가했습니다.`);
+    }
+
+    function initialize(templateId = "main") {
+      const html = templateHTML(templateId);
+      realRoot.innerHTML = html;
+      currentVdom = containerToVdom(realRoot);
+      renderRoot(testRoot, currentVdom);
+      htmlEditor.value = testRoot.innerHTML.trim();
+      history = [createHistoryEntry(currentVdom, "Initial publish", 0)];
+      historyIndex = 0;
+      renderPatchLog([]);
+      updateViews(currentVdom, [], history[0].timeLabel);
+    }
+
+    htmlEditor.addEventListener("input", () => {
+      const nextVdom = syncTestFromEditor();
+      nextVdomView.textContent = JSON.stringify(nextVdom, null, 2);
+      renderVdomTree(nextVdomTree, nextVdom);
+      setStatus("편집본 HTML을 다시 읽어 새 Virtual DOM 후보를 준비했습니다.");
+    });
+
+    patchButton.addEventListener("click", () => {
+      const nextVdom = syncTestFromEditor();
+      const patches = diff(currentVdom, nextVdom, []);
+
+      if (!patches.length) {
+        renderPatchLog([]);
+        updateViews(nextVdom, [], history[historyIndex]?.timeLabel || "--:--");
+        setStatus("변경점이 없어 새 발행본을 만들지 않았습니다.");
+        return;
+      }
+
+      applyPatches(realRoot, patches);
+      currentVdom = containerToVdom(realRoot);
+      pushHistory(currentVdom, "Patched publish", patches.length);
+      renderPatchLog(patches);
+      updateViews(nextVdom, patches, history[historyIndex].timeLabel);
+      setStatus(`Patch 발행 완료: ${patches.length}개의 변경만 실제 발행본 DOM에 반영했습니다.`);
+      flashPublishedPane();
+    });
+
+    undoButton.addEventListener("click", () => {
+      if (historyIndex > 0) restoreFromHistory(historyIndex - 1);
+    });
+
+    redoButton.addEventListener("click", () => {
+      if (historyIndex < history.length - 1) restoreFromHistory(historyIndex + 1);
+    });
+
+    resetButton.addEventListener("click", () => {
+      initialize(currentTemplateId);
+      setStatus("현재 템플릿 기준으로 샘플 발행본과 편집본을 초기화했습니다.");
+    });
+
+    document.querySelectorAll("[data-template]").forEach((button) => {
+      button.addEventListener("click", () => loadTemplate(button.dataset.template));
+    });
+
+    document.querySelectorAll("[data-snippet]").forEach((button) => {
+      button.addEventListener("click", () => insertSnippet(button.dataset.snippet));
+    });
+
+    initialize();
+  </script>
+</body>
+</html>
