@@ -3,167 +3,216 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Virtual DOM + Diff Algorithm Lab</title>
+    <title>Virtual DOM & Diff Algorithm Lab</title>
     <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./style.css" />
   </head>
-  <body class="service-demo-body">
-    <div class="service-app">
-      <header class="store-topbar">
-        <button id="serviceHomeButton" class="store-brand store-brand--button" type="button">
-          <span class="store-brand__mark">FD</span>
-          <div>
-            <strong>FlashDrop Live</strong>
-            <span>멤버 전용 드롭</span>
-          </div>
-        </button>
-        <nav class="store-nav" aria-label="Primary">
-          <a href="#serviceStateTitle">이번 드롭</a>
-          <a href="#serviceStateBody">멤버십</a>
-          <a href="#realDomRoot">이용 흐름</a>
-        </nav>
-        <div class="store-utility">
-          <span>찜 12</span>
-          <span>장바구니 01</span>
-          <span>내 계정</span>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <p class="hero__eyebrow">Vanilla JS Project</p>
+        <h1>Virtual DOM & Diff Algorithm Lab</h1>
+        <p class="hero__body">
+          브라우저 DOM을 Virtual DOM으로 변환하고, 이전 상태와 비교해 바뀐 부분만 실제 DOM에 patch하는
+          검증용 워크벤치입니다.
+        </p>
+        <div class="hero__facts">
+          <article class="fact-card">
+            <span>DOM API</span>
+            <strong>Document / Window / Node</strong>
+            <p>브라우저가 가진 실제 DOM 트리를 읽고 조작합니다.</p>
+          </article>
+          <article class="fact-card">
+            <span>Mutation Observer</span>
+            <strong>실제 변경 추적</strong>
+            <p>patch 후 어떤 DOM 변화가 일어났는지 로그로 확인합니다.</p>
+          </article>
+          <article class="fact-card">
+            <span>Rendering Cost</span>
+            <strong>Reflow / Repaint</strong>
+            <p>불필요한 전체 DOM 조작 대신 최소 변경만 반영하는 이유를 보여줍니다.</p>
+          </article>
         </div>
       </header>
 
-      <main class="service-main">
-        <section class="service-copy">
-          <p class="service-copy__eyebrow" id="serviceStateEyebrow">오늘의 한정 드롭</p>
-          <h1 id="serviceStateTitle">멤버 전용 프리뷰가 진행 중입니다</h1>
-          <p id="serviceStateBody">
-            AURA Runner 01 한정 드롭이 곧 열립니다. 사용자는 이 화면에서 멤버 입장, 번들 예약,
-            주문 요약 전환, 추천 순서 변경 같은 실시간 구매 흐름을 경험합니다.
-          </p>
-
-          <div class="service-benefits">
-            <article class="service-benefit">
-              <span>진행 상태</span>
-              <strong id="serviceModeValue">멤버 프리뷰</strong>
-              <p>오픈 전 기준 상태</p>
-            </article>
-            <article class="service-benefit">
-              <span>대표 상품</span>
-              <strong>AURA Runner 01</strong>
-              <p>서울 리미티드 컬러웨이</p>
-            </article>
-            <article class="service-benefit">
-              <span>출고</span>
-              <strong>당일 발송</strong>
-              <p>오후 6시 전 결제 시 당일 발송</p>
-            </article>
+      <section class="control-panel">
+        <div class="control-panel__head">
+          <div>
+            <p class="section-label">실행 컨트롤</p>
+            <h2>Patch와 History를 직접 확인하세요</h2>
           </div>
-
-          <div class="service-journey">
-            <strong>이 흐름으로 사용해보세요</strong>
-            <p>서비스 화면 안에서 멤버 입장, 번들 담기, 주문서 열기, 결제 완료, 추천순 정렬을 순서대로 눌러 실제 구매 흐름처럼 사용해보세요.</p>
+          <div class="control-panel__actions">
+            <button id="patchButton" class="button button--primary" type="button">Patch 적용</button>
+            <button id="backButton" class="button" type="button">뒤로가기</button>
+            <button id="forwardButton" class="button" type="button">앞으로가기</button>
+            <button id="resetButton" class="button" type="button">초기화</button>
           </div>
-
-          <section class="service-adoption" aria-labelledby="serviceReasonTitle">
-            <div class="service-adoption__head">
-              <strong id="serviceReasonTitle">왜 이 화면에 React-style 방식이 맞나</strong>
-              <span id="serviceReasonPatch">기본 상태</span>
-            </div>
-            <p id="serviceReasonBody">
-              이 화면은 hero, 드롭 현황, 드롭 백, 추천 영역이 같은 상태를 공유합니다. 그래서 영역마다 DOM을 수동으로 고치기보다 상태 기준으로 새 UI 트리를 만들고 필요한 부분만 patch하는 방식이 더 자연스럽습니다.
-            </p>
-            <div class="service-adoption__grid">
-              <article class="service-proof">
-                <span>한 번에 바뀌는 영역</span>
-                <strong id="serviceImpactAreas">Hero · 드롭 현황 · 드롭 백 · 추천 영역</strong>
-                <p id="serviceImpactSummary">멤버 입장 여부 하나만 바뀌어도 여러 카드가 동시에 갱신됩니다.</p>
-              </article>
-              <article class="service-proof">
-                <span>직접 DOM 대비 이점</span>
-                <strong id="serviceReasonBenefit">상태 한 번으로 전체 UI를 다시 계산</strong>
-                <p id="serviceReasonCompare">직접 DOM 조작이라면 각 카드의 텍스트, 버튼 상태, 배지, 리스트 순서를 따로 찾아 바꿔야 합니다.</p>
-              </article>
-            </div>
-          </section>
-
-          <div class="service-footnotes">
-            <span>무료 반품</span>
-            <span>멤버 선오픈</span>
-            <span>안전 결제</span>
-          </div>
-        </section>
-
-        <section class="service-stage">
-          <div class="stage-shell">
-            <div class="stage-shell__bar">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <div class="dom-stage dom-stage--service">
-              <div id="realDomRoot" class="dom-surface dom-surface--service" aria-label="Live Service Screen"></div>
-              <div id="realDomOverlay" class="dom-overlay" aria-hidden="true"></div>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
-
-    <div class="workbench-shell" aria-hidden="true">
-      <button id="patchButton" type="button">Patch 적용</button>
-      <button id="backButton" type="button">뒤로가기</button>
-      <button id="forwardButton" type="button">앞으로가기</button>
-      <button id="resetButton" type="button">초기 상태 복원</button>
-      <button id="syncSourceButton" type="button">테스트 영역에 반영</button>
-      <button id="playbackToggleButton" type="button">재생</button>
-      <button id="playbackNextButton" type="button">다음 Step</button>
-      <button id="playbackResetButton" type="button">처음으로</button>
-      <button id="demoTourButton" type="button">Demo Tour 시작</button>
-      <button id="demoFocusButton" type="button">핵심 Patch 보기</button>
-
-      <strong id="currentStateLabel">초기 상태</strong>
-      <p id="currentStateDescription">앱 초기화 전</p>
-      <span id="patchSummary">초기화 전</span>
-      <strong id="historyMeta">0 / 0</strong>
-      <strong id="patchCountMeta">0</strong>
-      <span id="treeMeta">nodes: 0</span>
-      <span id="depthMeta">depth: 0</span>
-      <strong id="observerMeta">Idle</strong>
-      <p id="editorMessage">ready</p>
-      <p id="playbackStatus">idle</p>
-      <p id="demoTourStatus">idle</p>
-
-      <div id="testDomRoot" contenteditable="true" aria-label="Test Area"></div>
-      <div id="testDomOverlay" aria-hidden="true"></div>
-      <textarea id="sourceEditor"></textarea>
-
-      <div id="diffLogPanel"></div>
-      <div id="historyPanel"></div>
-      <div id="treePanel"></div>
-      <div id="dfsPanel"></div>
-      <div id="bfsPanel"></div>
-      <div id="explanationPanel"></div>
-      <div id="scenarioPanel"></div>
-      <div id="patchTimelinePanel"></div>
-      <div id="performancePanel"></div>
-      <div id="inspectorPanel"></div>
-      <div id="demoBriefingPanel"></div>
-      <div id="demoSignalPanel"></div>
-      <div id="pipelinePanel"></div>
-    </div>
-
-    <template id="treeNodeTemplate">
-      <div class="tree-node">
-        <div class="tree-node__line">
-          <span class="tree-node__tag"></span>
-          <span class="tree-node__path"></span>
         </div>
-        <div class="tree-node__meta"></div>
-      </div>
-    </template>
+
+        <div class="meta-grid">
+          <article class="meta-card">
+            <span>History</span>
+            <strong id="historyMeta">0 / 0</strong>
+            <p>현재 선택된 상태 위치</p>
+          </article>
+          <article class="meta-card">
+            <span>Patch Count</span>
+            <strong id="patchMeta">0</strong>
+            <p>마지막 diff에서 생성된 patch 수</p>
+          </article>
+          <article class="meta-card">
+            <span>VNode Count</span>
+            <strong id="nodeMeta">0</strong>
+            <p>현재 실제 영역 기준 노드 수</p>
+          </article>
+          <article class="meta-card">
+            <span>Observer</span>
+            <strong id="observerMeta">0 mutations</strong>
+            <p>MutationObserver가 감지한 실제 DOM 변화</p>
+          </article>
+        </div>
+
+        <div class="status-box">
+          <div>
+            <p class="section-label">현재 상태</p>
+            <strong id="statusTitle">초기화 중</strong>
+          </div>
+          <p id="statusMessage">
+            브라우저 DOM을 읽어 초기 Virtual DOM을 만들고 있습니다.
+          </p>
+        </div>
+
+        <div class="preset-strip">
+          <p class="section-label">테스트 프리셋</p>
+          <div class="preset-strip__buttons">
+            <button class="chip-button" data-preset="base" type="button">기본 샘플</button>
+            <button class="chip-button" data-preset="textAttr" type="button">텍스트 + 속성 변경</button>
+            <button class="chip-button" data-preset="addNode" type="button">노드 추가</button>
+            <button class="chip-button" data-preset="removeNode" type="button">노드 삭제</button>
+            <button class="chip-button" data-preset="replaceTag" type="button">태그 교체</button>
+            <button class="chip-button" data-preset="mixed" type="button">복합 변경</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <article class="panel">
+          <div class="panel__head">
+            <div>
+              <p class="section-label">Actual DOM</p>
+              <h2>실제 영역</h2>
+            </div>
+            <span class="panel__badge">Patch 대상</span>
+          </div>
+          <div id="realDomRoot" class="canvas" aria-label="실제 영역"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__head">
+            <div>
+              <p class="section-label">Test DOM</p>
+              <h2>테스트 영역</h2>
+            </div>
+            <span class="panel__badge">자유 수정 가능</span>
+          </div>
+          <label class="editor-label" for="sourceEditor">샘플 HTML 코드</label>
+          <textarea
+            id="sourceEditor"
+            class="source-editor"
+            spellcheck="false"
+            aria-label="테스트 HTML 코드 편집기"
+          ></textarea>
+          <div class="preview-head">
+            <span>테스트 렌더링 미리보기</span>
+            <strong id="testMeta">waiting</strong>
+          </div>
+          <div id="testDomRoot" class="canvas canvas--test" aria-label="테스트 영역"></div>
+        </article>
+      </section>
+
+      <section class="insight-grid">
+        <article class="panel panel--compact">
+          <div class="panel__head">
+            <div>
+              <p class="section-label">Diff Result</p>
+              <h2>Patch Log</h2>
+            </div>
+          </div>
+          <ol id="patchLog" class="log-list"></ol>
+        </article>
+
+        <article class="panel panel--compact">
+          <div class="panel__head">
+            <div>
+              <p class="section-label">State History</p>
+              <h2>History</h2>
+            </div>
+          </div>
+          <div id="historyPanel" class="history-list"></div>
+        </article>
+
+        <article class="panel panel--compact">
+          <div class="panel__head">
+            <div>
+              <p class="section-label">Virtual DOM</p>
+              <h2>현재 VDOM 스냅샷</h2>
+            </div>
+          </div>
+          <pre id="treePanel" class="tree-view"></pre>
+        </article>
+
+        <article class="panel panel--compact">
+          <div class="panel__head">
+            <div>
+              <p class="section-label">Browser API</p>
+              <h2>MutationObserver Log</h2>
+            </div>
+          </div>
+          <ul id="observerLog" class="observer-list"></ul>
+        </article>
+      </section>
+
+      <section class="notes-grid">
+        <article class="note-card">
+          <span>왜 실제 DOM이 느린가</span>
+          <strong>Reflow와 Repaint 비용</strong>
+          <p>
+            요소 추가, 삭제, 속성 변경이 많아질수록 브라우저는 레이아웃 재계산과 다시 그리기를 반복합니다.
+            Virtual DOM은 이 비용을 줄이기 위해 변경점을 메모리에서 먼저 계산합니다.
+          </p>
+        </article>
+        <article class="note-card">
+          <span>Virtual DOM 구조</span>
+          <strong>태그, 속성, 자식 노드의 객체 트리</strong>
+          <p>
+            이 프로젝트는 실제 DOM을 순회해 element/text 노드를 객체로 바꾸고, 그 트리를 기준으로 화면을
+            다시 렌더링합니다.
+          </p>
+        </article>
+        <article class="note-card">
+          <span>Diff 핵심 케이스</span>
+          <strong>추가, 삭제, 교체, 속성 변경, 텍스트 변경</strong>
+          <p>
+            두 Virtual DOM 트리를 비교해 위 다섯 가지 케이스를 찾아내고, 실제 DOM에는 필요한 위치만
+            반영합니다.
+          </p>
+        </article>
+        <article class="note-card">
+          <span>React와의 연결</span>
+          <strong>Reconciliation 이후 Commit</strong>
+          <p>
+            React도 상태 변경 후 새로운 UI 트리를 만들고 이전 트리와 비교한 뒤, 바뀐 부분만 실제 DOM에
+            commit합니다. 이 프로젝트는 그 축소판입니다.
+          </p>
+        </article>
+      </section>
+    </div>
 
     <script src="./app.js"></script>
   </body>
