@@ -998,28 +998,43 @@ function applyVNodeReorderPatch(root, patch, nextTree) {
     return;
   }
 
-  const existingChildren = getComparableChildNodes(parent);
-  const existingByKey = new Map();
-  existingChildren.forEach((child, index) => {
-    existingByKey.set(getVNodeDomKey(child, index), child);
-  });
-
   const fragment = document.createDocumentFragment();
   (parentVNode.children || []).forEach((childVNode, index) => {
-    const lookupKey = childVNode.key || `__index_${index}`;
-    const existingNode = existingByKey.get(lookupKey);
-    fragment.appendChild(existingNode || createDomNodeFromVNodeTree(childVNode));
+    fragment.appendChild(createDomNodeFromVNodeTree(childVNode));
   });
 
   parent.replaceChildren(fragment);
 }
 
+function isSameOrDescendantPath(path, ancestorPath) {
+  return path === ancestorPath || path.startsWith(`${ancestorPath}-`);
+}
+
+function isPatchHandledByReorder(patch, reorderedPaths) {
+  return reorderedPaths.some((reorderPath) => {
+    if (patch.type === VNODE_PATCH_TYPES.REORDER_CHILDREN) {
+      return false;
+    }
+
+    if (patch.type === VNODE_PATCH_TYPES.CREATE) {
+      return isSameOrDescendantPath(patch.path, reorderPath) && patch.path !== reorderPath;
+    }
+
+    return isSameOrDescendantPath(patch.path, reorderPath) && patch.path !== reorderPath;
+  });
+}
+
 export function applyPatchesToDom(root, patches, nextTree) {
+  const reorderedPaths = patches
+    .filter((patch) => patch.type === VNODE_PATCH_TYPES.REORDER_CHILDREN)
+    .map((patch) => patch.path);
   const removePatches = patches
     .filter((patch) => patch.type === VNODE_PATCH_TYPES.REMOVE)
+    .filter((patch) => !isPatchHandledByReorder(patch, reorderedPaths))
     .sort((a, b) => b.path.split("-").length - a.path.split("-").length);
   const createPatches = patches
     .filter((patch) => patch.type === VNODE_PATCH_TYPES.CREATE)
+    .filter((patch) => !isPatchHandledByReorder(patch, reorderedPaths))
     .sort((a, b) => a.path.split("-").length - b.path.split("-").length);
   const updatePatches = patches.filter(
     (patch) =>
@@ -1028,7 +1043,7 @@ export function applyPatchesToDom(root, patches, nextTree) {
         VNODE_PATCH_TYPES.REMOVE,
         VNODE_PATCH_TYPES.REORDER_CHILDREN
       ].includes(patch.type)
-  );
+  ).filter((patch) => !isPatchHandledByReorder(patch, reorderedPaths));
   const reorderPatches = patches
     .filter((patch) => patch.type === VNODE_PATCH_TYPES.REORDER_CHILDREN)
     .sort((a, b) => a.path.split("-").length - b.path.split("-").length);

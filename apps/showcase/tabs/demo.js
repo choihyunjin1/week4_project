@@ -286,6 +286,29 @@ function getPatchHighlightPaths(patches) {
   return paths;
 }
 
+function compareTreePaths(left, right) {
+  const leftParts = String(left)
+    .split("-")
+    .map((value) => Number(value));
+  const rightParts = String(right)
+    .split("-")
+    .map((value) => Number(value));
+  const sharedLength = Math.min(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] - rightParts[index];
+    }
+  }
+
+  return leftParts.length - rightParts.length;
+}
+
+function getFirstHighlightedPath(paths) {
+  const sortedPaths = Array.from(paths).sort(compareTreePaths);
+  return sortedPaths[0] || null;
+}
+
 function renderVNodeTreeMarkup(node, highlightedPaths) {
   if (!node) {
     return "";
@@ -302,7 +325,7 @@ function renderVNodeTreeMarkup(node, highlightedPaths) {
 
   return `
     <li class="vdom-tree__node ${highlightedPaths.has(node.path) ? "is-changed" : ""}">
-      <div class="vdom-tree__row">
+      <div class="vdom-tree__row" data-tree-path="${escapeHTML(node.path)}">
         <span class="vdom-tree__badge">${badge}</span>
         <code class="vdom-tree__path">${escapeHTML(node.path)}</code>
         <strong class="vdom-tree__label">${label}</strong>
@@ -779,7 +802,8 @@ export function mountDemoTab(container) {
     metricHistory: container.querySelector("#metricHistory"),
     vdomTree: container.querySelector("#vdomTree"),
     observerBadge: container.querySelector("#observerBadge"),
-    observerFeed: container.querySelector("#observerFeed")
+    observerFeed: container.querySelector("#observerFeed"),
+    treeScroller: container.querySelector(".lab-card--tree .traversal-card")
   };
 
   const state = {
@@ -789,13 +813,15 @@ export function mountDemoTab(container) {
     historyIndex: 0,
     observerFeed: [],
     observerCount: 0,
-    highlightedPaths: new Set()
+    highlightedPaths: new Set(),
+    pendingScrollPath: null
   };
 
   function rebuildDraftFromEditor() {
     const nextTree = parseMarkupToTree(ui.editor.value);
     state.draftTree = cloneVNodeTree(nextTree);
     state.highlightedPaths = new Set();
+    state.pendingScrollPath = null;
     renderVNodeTree(ui.testRoot, state.draftTree);
     renderTreeStats();
   }
@@ -848,6 +874,27 @@ export function mountDemoTab(container) {
     ui.metricDepth.textContent = String(stats.depth);
     ui.metricHistory.textContent = String(state.history.length);
     ui.vdomTree.innerHTML = renderVNodeTreeMarkup(state.draftTree || state.actualTree, state.highlightedPaths);
+
+    if (state.pendingScrollPath) {
+      const target = ui.vdomTree.querySelector(`[data-tree-path="${state.pendingScrollPath}"]`);
+      if (target && ui.treeScroller) {
+        requestAnimationFrame(() => {
+          const targetRect = target.getBoundingClientRect();
+          const scrollerRect = ui.treeScroller.getBoundingClientRect();
+          const nextScrollTop =
+            ui.treeScroller.scrollTop +
+            (targetRect.top - scrollerRect.top) -
+            ui.treeScroller.clientHeight / 2 +
+            targetRect.height / 2;
+
+          ui.treeScroller.scrollTo({
+            top: Math.max(0, nextScrollTop),
+            behavior: "smooth"
+          });
+        });
+      }
+      state.pendingScrollPath = null;
+    }
   }
 
   function renderHistory() {
@@ -905,6 +952,7 @@ export function mountDemoTab(container) {
     });
     syncEditorToDraft();
     state.highlightedPaths = new Set();
+    state.pendingScrollPath = null;
     renderPatchPanels([], snapshot.note);
     renderHistory();
     renderTreeStats();
@@ -981,6 +1029,7 @@ export function mountDemoTab(container) {
     applyPatchesToDom(ui.testRoot, patches, nextTree);
     state.draftTree = cloneVNodeTree(nextTree);
     state.highlightedPaths = new Set();
+    state.pendingScrollPath = null;
     syncEditorToDraft();
     renderTreeStats();
   };
@@ -999,6 +1048,7 @@ export function mountDemoTab(container) {
 
     if (!patches.length) {
       state.highlightedPaths = new Set();
+      state.pendingScrollPath = null;
       renderPatchPanels([], "Diff 결과 변경점이 없습니다.");
       renderTreeStats();
       return;
@@ -1008,6 +1058,7 @@ export function mountDemoTab(container) {
     state.actualTree = cloneVNodeTree(nextTree);
     state.draftTree = cloneVNodeTree(nextTree);
     state.highlightedPaths = getPatchHighlightPaths(patches);
+    state.pendingScrollPath = getFirstHighlightedPath(state.highlightedPaths);
     syncEditorToDraft();
     const snapshot = createSnapshot(nextTree, `Patched ${patches.length} changes`, patches);
     pushHistory(snapshot);

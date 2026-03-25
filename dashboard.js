@@ -5,11 +5,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingOverlay = document.getElementById('loading-overlay');
     const reloadBtn = document.getElementById('reload-btn');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
+    let waitingForAppReady = false;
+
+    function isDemoLabTarget(src) {
+        return typeof src === 'string' && src.includes('demo-lab/index.html');
+    }
+
+    function revealFrame() {
+        loadingOverlay.classList.remove('active');
+        iframe.classList.add('ready');
+        waitingForAppReady = false;
+    }
 
     // Handle Iframe Load
     iframe.addEventListener('load', () => {
-        loadingOverlay.classList.remove('active');
-        iframe.classList.add('ready');
+        if (!waitingForAppReady) {
+            revealFrame();
+        }
+    });
+
+    window.addEventListener('message', (event) => {
+        if (event.source !== iframe.contentWindow) {
+            return;
+        }
+
+        if (event.data && event.data.type === 'demo-lab-ready') {
+            revealFrame();
+        }
     });
 
     // Handle Navigation Clicks
@@ -25,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Trigger Transition
             iframe.classList.remove('ready');
             loadingOverlay.classList.add('active');
+            waitingForAppReady = isDemoLabTarget(btn.getAttribute('data-target'));
 
             // Small delay to allow fade out before changing src (smoother UX)
             setTimeout(() => {
@@ -37,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reloadBtn.addEventListener('click', () => {
         iframe.classList.remove('ready');
         loadingOverlay.classList.add('active');
+        waitingForAppReady = isDemoLabTarget(iframe.src);
         setTimeout(() => {
             iframe.contentWindow.location.reload();
         }, 150);
@@ -54,11 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Trigger initial load fade-in
-    if(iframe.src) {
-        // It might have loaded before event listener attached
-        setTimeout(() => {
-            loadingOverlay.classList.remove('active');
-            iframe.classList.add('ready');
-        }, 500);
+    if (iframe.src) {
+        waitingForAppReady = isDemoLabTarget(iframe.src);
+        if (!waitingForAppReady && iframe.contentDocument?.readyState === 'complete') {
+            revealFrame();
+        }
     }
 });
