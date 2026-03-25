@@ -53,7 +53,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-  width: 320px;
+  width: 272px;
   display: flex;
   flex-direction: column;
   background: var(--panel-bg);
@@ -65,7 +65,7 @@ body {
 }
 
 .sidebar__brand {
-  margin-bottom: 40px;
+  margin-bottom: 28px;
 }
 
 .logo {
@@ -90,7 +90,7 @@ body {
 
 .sidebar__nav {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   flex-grow: 1;
 }
 
@@ -103,7 +103,7 @@ body {
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
-  padding: 16px;
+  padding: 14px;
   border-radius: var(--radius-lg);
   color: var(--ink-soft);
   cursor: pointer;
@@ -112,9 +112,9 @@ body {
 
 .nav-btn .icon {
   grid-area: icon;
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   background: rgba(255,255,255,0.05);
-  width: 44px; height: 44px;
+  width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 12px;
   transition: all 0.3s ease;
@@ -122,14 +122,14 @@ body {
 
 .nav-btn .text {
   grid-area: text;
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
   color: var(--ink);
 }
 
 .nav-btn .desc {
   grid-area: desc;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   margin-top: 4px;
 }
 

@@ -998,16 +998,20 @@ function applyVNodeReorderPatch(root, patch, nextTree) {
     return;
   }
 
+  const existingChildren = getComparableChildNodes(parent);
+  const existingByKey = new Map();
+  existingChildren.forEach((child, index) => {
+    existingByKey.set(getVNodeDomKey(child, index), child);
+  });
+
   const fragment = document.createDocumentFragment();
   (parentVNode.children || []).forEach((childVNode, index) => {
-    fragment.appendChild(createDomNodeFromVNodeTree(childVNode));
+    const lookupKey = childVNode.key || `__index_${index}`;
+    const existingNode = existingByKey.get(lookupKey);
+    fragment.appendChild(existingNode || createDomNodeFromVNodeTree(childVNode));
   });
 
   parent.replaceChildren(fragment);
-}
-
-function isSameOrDescendantPath(path, ancestorPath) {
-  return path === ancestorPath || path.startsWith(`${ancestorPath}-`);
 }
 
 export function applyPatchesToDom(root, patches, nextTree) {
@@ -1028,13 +1032,11 @@ export function applyPatchesToDom(root, patches, nextTree) {
   const reorderPatches = patches
     .filter((patch) => patch.type === VNODE_PATCH_TYPES.REORDER_CHILDREN)
     .sort((a, b) => a.path.split("-").length - b.path.split("-").length);
-  const reorderedPaths = reorderPatches.map((patch) => patch.path);
-  const isHandledByReorder = (patch) =>
-    reorderedPaths.some((reorderPath) => isSameOrDescendantPath(patch.path, reorderPath) && patch.path !== reorderPath);
 
   removePatches.forEach((patch) => applyVNodeRemovePatch(root, patch));
   reorderPatches.forEach((patch) => applyVNodeReorderPatch(root, patch, nextTree));
-  updatePatches.filter((patch) => !isHandledByReorder(patch)).forEach((patch) => {
+  createPatches.forEach((patch) => applyVNodeCreatePatch(root, patch));
+  updatePatches.forEach((patch) => {
     switch (patch.type) {
       case VNODE_PATCH_TYPES.REPLACE:
         applyVNodeReplacePatch(root, patch);
@@ -1052,7 +1054,6 @@ export function applyPatchesToDom(root, patches, nextTree) {
         break;
     }
   });
-  createPatches.filter((patch) => !isHandledByReorder(patch)).forEach((patch) => applyVNodeCreatePatch(root, patch));
 }
 
 export function cloneVNodeTree(vNode) {

@@ -57,48 +57,54 @@ const SAMPLE_HTML = `
       </div>
 
       <section class="post-comments" data-key="post-comments">
-        <article class="comment-card" data-key="comment-2">
+        <article class="comment-card" data-key="comment-2" data-editing="false">
           <div class="comment-card__body">
             <strong>@teammate</strong>
-            <p data-comment-text="true">테스트 영역에서 누른 값이 편집기에도 같이 반영되는 점이 좋네요.</p>
-            <input class="comment-editor__input" type="text" value="테스트 영역에서 누른 값이 편집기에도 같이 반영되는 점이 좋네요." data-edit-input="comment-2" />
+            <p class="comment-card__text" data-comment-text="true">테스트 영역에서 누른 값이 편집기에도 같이 반영되는 점이 좋네요.</p>
+            <div class="comment-editor" data-editing="false">
+              <input class="comment-editor__input" type="text" value="테스트 영역에서 누른 값이 편집기에도 같이 반영되는 점이 좋네요." data-edit-input="comment-2" />
+            </div>
           </div>
           <div class="comment-card__actions">
             <div class="counter-chip counter-chip--inline" data-counter-widget="comment-like-2">
               <button class="counter-chip__button" type="button" data-counter-button="true">좋아요</button>
               <strong class="counter-chip__value" data-counter-value="true">9</strong>
             </div>
-            <button class="comment-edit-button" type="button" data-edit-button="comment-2">수정</button>
+            <button class="comment-edit-button" type="button" data-edit-button="comment-2" data-edit-mode="idle">수정</button>
           </div>
         </article>
 
-        <article class="comment-card" data-key="comment-1">
+        <article class="comment-card" data-key="comment-1" data-editing="false">
           <div class="comment-card__body">
             <strong>@binny</strong>
-            <p data-comment-text="true">레이아웃이 훨씬 또렷해졌어요.</p>
-            <input class="comment-editor__input" type="text" value="레이아웃이 훨씬 또렷해졌어요." data-edit-input="comment-1" />
+            <p class="comment-card__text" data-comment-text="true">레이아웃이 훨씬 또렷해졌어요.</p>
+            <div class="comment-editor" data-editing="false">
+              <input class="comment-editor__input" type="text" value="레이아웃이 훨씬 또렷해졌어요." data-edit-input="comment-1" />
+            </div>
           </div>
           <div class="comment-card__actions">
             <div class="counter-chip counter-chip--inline" data-counter-widget="comment-like-1">
               <button class="counter-chip__button" type="button" data-counter-button="true">좋아요</button>
               <strong class="counter-chip__value" data-counter-value="true">4</strong>
             </div>
-            <button class="comment-edit-button" type="button" data-edit-button="comment-1">수정</button>
+            <button class="comment-edit-button" type="button" data-edit-button="comment-1" data-edit-mode="idle">수정</button>
           </div>
         </article>
 
-        <article class="comment-card" data-key="comment-3">
+        <article class="comment-card" data-key="comment-3" data-editing="false">
           <div class="comment-card__body">
             <strong>@observer</strong>
-            <p data-comment-text="true">Patch 전후 차이를 시각적으로 확인하기 쉬워졌습니다.</p>
-            <input class="comment-editor__input" type="text" value="Patch 전후 차이를 시각적으로 확인하기 쉬워졌습니다." data-edit-input="comment-3" />
+            <p class="comment-card__text" data-comment-text="true">Patch 전후 차이를 시각적으로 확인하기 쉬워졌습니다.</p>
+            <div class="comment-editor" data-editing="false">
+              <input class="comment-editor__input" type="text" value="Patch 전후 차이를 시각적으로 확인하기 쉬워졌습니다." data-edit-input="comment-3" />
+            </div>
           </div>
           <div class="comment-card__actions">
             <div class="counter-chip counter-chip--inline" data-counter-widget="comment-like-3">
               <button class="counter-chip__button" type="button" data-counter-button="true">좋아요</button>
               <strong class="counter-chip__value" data-counter-value="true">2</strong>
             </div>
-            <button class="comment-edit-button" type="button" data-edit-button="comment-3">수정</button>
+            <button class="comment-edit-button" type="button" data-edit-button="comment-3" data-edit-mode="idle">수정</button>
           </div>
         </article>
       </section>
@@ -352,16 +358,18 @@ function createElementVNode(tag, attrs = {}, children = []) {
   };
 }
 
-function createCommentVNode(commentKey, author, text, likes = 0) {
-  return createElementVNode("article", { class: "comment-card", "data-key": commentKey }, [
+function createCommentVNode(commentKey, author, text, likes = 0, isEditing = false) {
+  return createElementVNode("article", { class: "comment-card", "data-key": commentKey, "data-editing": isEditing ? "true" : "false" }, [
     createElementVNode("div", { class: "comment-card__body" }, [
       createElementVNode("strong", {}, [createTextVNode(author)]),
-      createElementVNode("p", { "data-comment-text": true }, [createTextVNode(text)]),
-      createElementVNode(
-        "input",
-        { class: "comment-editor__input", type: "text", value: text, "data-edit-input": commentKey },
-        []
-      )
+      createElementVNode("p", { class: "comment-card__text", "data-comment-text": true }, [createTextVNode(text)]),
+      createElementVNode("div", { class: "comment-editor", "data-editing": isEditing ? "true" : "false" }, [
+        createElementVNode(
+          "input",
+          { class: "comment-editor__input", type: "text", value: text, "data-edit-input": commentKey },
+          []
+        )
+      ])
     ]),
     createElementVNode("div", { class: "comment-card__actions" }, [
       createElementVNode(
@@ -376,9 +384,16 @@ function createCommentVNode(commentKey, author, text, likes = 0) {
           ])
         ]
       ),
-      createElementVNode("button", { class: "comment-edit-button", type: "button", "data-edit-button": commentKey }, [
-        createTextVNode("수정")
-      ])
+      createElementVNode(
+        "button",
+        {
+          class: "comment-edit-button",
+          type: "button",
+          "data-edit-button": commentKey,
+          "data-edit-mode": isEditing ? "editing" : "idle"
+        },
+        [createTextVNode(isEditing ? "저장" : "수정")]
+      )
     ])
   ]);
 }
@@ -436,9 +451,14 @@ function getInteractionAction(root, event) {
   const editButton = event.target.closest("[data-edit-button]");
   if (editButton && root.contains(editButton)) {
     const commentKey = editButton.getAttribute("data-edit-button");
-    const input = root.querySelector(`[data-edit-input="${commentKey}"]`);
-    const text = input ? input.value.trim() : "";
-    return commentKey && text ? { type: "edit-comment", commentKey, text } : null;
+    const mode = editButton.getAttribute("data-edit-mode") || "idle";
+    if (mode === "editing") {
+      const input = root.querySelector(`[data-edit-input="${commentKey}"]`);
+      const text = input ? input.value.trim() : "";
+      return commentKey && text ? { type: "save-comment-edit", commentKey, text } : null;
+    }
+
+    return commentKey ? { type: "start-comment-edit", commentKey } : null;
   }
 
   return null;
@@ -510,12 +530,52 @@ function buildInteractiveNextTree(sourceTree, action) {
       }
       break;
     }
-    case "edit-comment": {
+    case "start-comment-edit": {
       const commentNode = findVNode(
         nextTree,
         (node) => node.attrs && node.attrs["data-key"] === action.commentKey
       );
       if (commentNode) {
+        commentNode.attrs["data-editing"] = "true";
+        const inputNode = findVNode(
+          commentNode,
+          (node) => node.attrs && node.attrs["data-edit-input"] === action.commentKey
+        );
+        const textNode = findVNode(
+          commentNode,
+          (node) => node.attrs && Object.prototype.hasOwnProperty.call(node.attrs, "data-comment-text")
+        );
+        const editorNode = findVNode(
+          commentNode,
+          (node) => node.attrs && node.attrs.class === "comment-editor"
+        );
+        const buttonNode = findVNode(
+          commentNode,
+          (node) => node.attrs && node.attrs["data-edit-button"] === action.commentKey
+        );
+
+        if (inputNode && textNode) {
+          inputNode.attrs.value = readVNodeText(textNode);
+        }
+
+        if (editorNode) {
+          editorNode.attrs["data-editing"] = "true";
+        }
+
+        if (buttonNode) {
+          buttonNode.attrs["data-edit-mode"] = "editing";
+          writeVNodeText(buttonNode, "저장");
+        }
+      }
+      break;
+    }
+    case "save-comment-edit": {
+      const commentNode = findVNode(
+        nextTree,
+        (node) => node.attrs && node.attrs["data-key"] === action.commentKey
+      );
+      if (commentNode) {
+        commentNode.attrs["data-editing"] = "false";
         const textNode = findVNode(
           commentNode,
           (node) => node.attrs && Object.prototype.hasOwnProperty.call(node.attrs, "data-comment-text")
@@ -524,11 +584,26 @@ function buildInteractiveNextTree(sourceTree, action) {
           commentNode,
           (node) => node.attrs && node.attrs["data-edit-input"] === action.commentKey
         );
+        const editorNode = findVNode(
+          commentNode,
+          (node) => node.attrs && node.attrs.class === "comment-editor"
+        );
+        const buttonNode = findVNode(
+          commentNode,
+          (node) => node.attrs && node.attrs["data-edit-button"] === action.commentKey
+        );
         if (textNode) {
           writeVNodeText(textNode, action.text);
         }
         if (inputNode) {
           inputNode.attrs.value = action.text;
+        }
+        if (editorNode) {
+          editorNode.attrs["data-editing"] = "false";
+        }
+        if (buttonNode) {
+          buttonNode.attrs["data-edit-mode"] = "idle";
+          writeVNodeText(buttonNode, "수정");
         }
       }
       break;
@@ -544,29 +619,6 @@ function buildInteractiveNextTree(sourceTree, action) {
 export function mountDemoTab(container) {
   container.innerHTML = `
     <section class="patch-lab">
-      <section class="lab-overview">
-        <article class="overview-card">
-          <span>Load</span>
-          <strong>실제 영역 DOM을 VDOM으로 변환</strong>
-          <p>초기 샘플 HTML을 읽고 테스트 영역도 같은 트리로 재생성합니다.</p>
-        </article>
-        <article class="overview-card">
-          <span>Edit</span>
-          <strong>테스트 영역 HTML을 자유롭게 수정</strong>
-          <p>textarea 편집 결과가 테스트 영역 후보 DOM에 즉시 반영됩니다.</p>
-        </article>
-        <article class="overview-card">
-          <span>Patch</span>
-          <strong>diff 결과만 실제 영역에 commit</strong>
-          <p>변경된 부분만 실제 DOM에 적용하고 이력을 저장합니다.</p>
-        </article>
-        <article class="overview-card">
-          <span>Trace</span>
-          <strong>History / Observer / Traversal 확인</strong>
-          <p>Undo/Redo와 MutationObserver 로그를 함께 봅니다.</p>
-        </article>
-      </section>
-
       <section class="patch-lab__grid">
         <article class="lab-card lab-card--editor">
           <div class="lab-card__head">

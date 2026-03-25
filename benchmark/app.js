@@ -3,6 +3,19 @@
   Vanilla JavaScript implementation focused on explainability.
 */
 
+import {
+  VNODE_PATCH_TYPES,
+  applyPatchesToDom as applySharedPatchesToDom,
+  countVNodeNodes as countSharedVNodeNodes,
+  diffVNodeTrees as diffSharedVNodeTrees,
+  domToVNodeTree as domToSharedVNodeTree,
+  getVNodeMaxDepth as getSharedVNodeMaxDepth,
+  normalizeVNodeTree as normalizeSharedVNodeTree,
+  renderVNodeTree as renderSharedVNodeTree,
+  traverseVNodeBFS as traverseSharedVNodeBFS,
+  traverseVNodeDFS as traverseSharedVNodeDFS
+} from "../packages/team3-react/src/index.js";
+
 /* -------------------------------------------------------------------------- */
 /* 1. constants                                                                */
 /* -------------------------------------------------------------------------- */
@@ -13,15 +26,7 @@ const NODE_TYPE = {
   COMMENT: 8
 };
 
-const PATCH_TYPES = {
-  CREATE: "CREATE",
-  REMOVE: "REMOVE",
-  REPLACE: "REPLACE",
-  TEXT: "TEXT",
-  ATTR_SET: "ATTR_SET",
-  ATTR_REMOVE: "ATTR_REMOVE",
-  REORDER_CHILDREN: "REORDER_CHILDREN"
-};
+const PATCH_TYPES = VNODE_PATCH_TYPES;
 
 const GRAPH_POINT_LIMIT = 90;
 const BENCHMARK_BURST_TICKS = 30;
@@ -427,20 +432,11 @@ function getPathDepth(path) {
 }
 
 function countNodes(vNode) {
-  if (!vNode) {
-    return 0;
-  }
-  return 1 + (vNode.children || []).reduce((total, child) => total + countNodes(child), 0);
+  return countSharedVNodeNodes(vNode);
 }
 
 function calculateMaxDepth(vNode) {
-  if (!vNode) {
-    return 0;
-  }
-  if (!vNode.children || !vNode.children.length) {
-    return vNode.depth || 0;
-  }
-  return Math.max(...vNode.children.map((child) => calculateMaxDepth(child)));
+  return getSharedVNodeMaxDepth(vNode);
 }
 
 function getNodeDescriptor(vNode) {
@@ -577,31 +573,11 @@ function domNodeToVNode(node, path, depth) {
   비교 대상이 여러 루트 노드를 가질 수 있으므로 하나의 트리 루트로 감싸야 diff와 history를 단순하게 유지할 수 있다.
 */
 function domToVNode(container) {
-  const root = createRootContainer();
-  let childIndex = 0;
-  Array.from(container.childNodes || []).forEach((child) => {
-    const childVNode = domNodeToVNode(child, `0-${childIndex}`, 1);
-    if (childVNode) {
-      root.children.push(childVNode);
-      childIndex += 1;
-    }
-  });
-  return root;
+  return domToSharedVNodeTree(container);
 }
 
 function normalizeVNodePaths(vNode, path = "0", depth = 0) {
-  if (!vNode) {
-    return null;
-  }
-  vNode.path = path;
-  vNode.depth = depth;
-  if (vNode.type === "element") {
-    vNode.key = buildKey(vNode.attrs, `${vNode.tag}-${path}`);
-  }
-  (vNode.children || []).forEach((child, index) => {
-    normalizeVNodePaths(child, `${path}-${index}`, depth + 1);
-  });
-  return vNode;
+  return normalizeSharedVNodeTree(vNode, path, depth);
 }
 
 /*
@@ -634,8 +610,7 @@ function createDOMFromVNode(vNode) {
 }
 
 function renderVNodeToRoot(root, vNode) {
-  root.innerHTML = "";
-  (vNode.children || []).forEach((child) => root.appendChild(createDOMFromVNode(child)));
+  renderSharedVNodeTree(root, vNode);
 }
 
 function findVNodeByPath(vNode, path) {
@@ -669,16 +644,7 @@ function findVNodeByPath(vNode, path) {
   Virtual DOM이 일반 트리라는 점과 depth 기반 방문 순서를 UI로 설명하기 위해 필요하다.
 */
 function traverseDFS(root) {
-  const order = [];
-  function visit(node) {
-    if (!node) {
-      return;
-    }
-    order.push({ path: node.path, label: getNodeDescriptor(node), depth: node.depth });
-    (node.children || []).forEach((child) => visit(child));
-  }
-  visit(root);
-  return order;
+  return traverseSharedVNodeDFS(root);
 }
 
 /*
@@ -692,17 +658,7 @@ function traverseDFS(root) {
   레벨 순회를 통해 같은 depth에 있는 노드가 어떻게 배치되는지 보여주기 위해 필요하다.
 */
 function traverseBFS(root) {
-  if (!root) {
-    return [];
-  }
-  const order = [];
-  const queue = [root];
-  while (queue.length) {
-    const current = queue.shift();
-    order.push({ path: current.path, label: getNodeDescriptor(current), depth: current.depth });
-    (current.children || []).forEach((child) => queue.push(child));
-  }
-  return order;
+  return traverseSharedVNodeBFS(root);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -799,47 +755,7 @@ function diffChildren(oldChildren, newChildren, parentPath, patches) {
   실제 DOM에 들어가기 전에 메모리 상에서 변경점을 계산해야 최소 변경 방식이 가능하다.
 */
 function diff(oldNode, newNode, path = "0", patches = []) {
-  if (!oldNode && newNode) {
-    patches.push({
-      type: PATCH_TYPES.CREATE,
-      path,
-      parentPath: path.split("-").slice(0, -1).join("-") || "0",
-      index: Number(path.split("-").pop() || 0),
-      node: newNode
-    });
-    return patches;
-  }
-
-  if (oldNode && !newNode) {
-    patches.push({
-      type: PATCH_TYPES.REMOVE,
-      path,
-      parentPath: path.split("-").slice(0, -1).join("-") || "0",
-      index: Number(path.split("-").pop() || 0),
-      node: oldNode
-    });
-    return patches;
-  }
-
-  if (!oldNode || !newNode) {
-    return patches;
-  }
-
-  if (oldNode.type !== newNode.type || oldNode.tag !== newNode.tag) {
-    patches.push({ type: PATCH_TYPES.REPLACE, path, oldNode, newNode });
-    return patches;
-  }
-
-  if (oldNode.type === "text" && newNode.type === "text") {
-    if (oldNode.text !== newNode.text) {
-      patches.push({ type: PATCH_TYPES.TEXT, path, oldText: oldNode.text, newText: newNode.text });
-    }
-    return patches;
-  }
-
-  diffAttrs(oldNode.attrs, newNode.attrs, path, patches);
-  diffChildren(oldNode.children || [], newNode.children || [], path, patches);
-  return patches;
+  return diffSharedVNodeTrees(oldNode, newNode, path, patches);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -946,38 +862,7 @@ function applyReorderPatch(root, patch, newVNodeRoot) {
   diff 결과를 실제 화면 변화로 연결하는 단계이며, Virtual DOM의 핵심 가치는 바로 여기서 드러난다.
 */
 function applyPatches(root, patches, newVNodeRoot) {
-  const removePatches = patches
-    .filter((patch) => patch.type === PATCH_TYPES.REMOVE)
-    .sort((a, b) => getPathDepth(b.path) - getPathDepth(a.path));
-  const createPatches = patches
-    .filter((patch) => patch.type === PATCH_TYPES.CREATE)
-    .sort((a, b) => getPathDepth(a.path) - getPathDepth(b.path));
-  const updatePatches = patches.filter(
-    (patch) => ![PATCH_TYPES.CREATE, PATCH_TYPES.REMOVE, PATCH_TYPES.REORDER_CHILDREN].includes(patch.type)
-  );
-  const reorderPatches = patches.filter((patch) => patch.type === PATCH_TYPES.REORDER_CHILDREN);
-
-  removePatches.forEach((patch) => applyRemovePatch(root, patch));
-  updatePatches.forEach((patch) => {
-    switch (patch.type) {
-      case PATCH_TYPES.REPLACE:
-        applyReplacePatch(root, patch);
-        break;
-      case PATCH_TYPES.TEXT:
-        applyTextPatch(root, patch);
-        break;
-      case PATCH_TYPES.ATTR_SET:
-        applyAttrSetPatch(root, patch);
-        break;
-      case PATCH_TYPES.ATTR_REMOVE:
-        applyAttrRemovePatch(root, patch);
-        break;
-      default:
-        break;
-    }
-  });
-  createPatches.forEach((patch) => applyCreatePatch(root, patch));
-  reorderPatches.forEach((patch) => applyReorderPatch(root, patch, newVNodeRoot));
+  applySharedPatchesToDom(root, patches, newVNodeRoot);
 
   if (state.benchmark.running || state.benchmark.burstRemaining > 0) {
     state.benchmark.mutationTotals.vdom += patches.length;
