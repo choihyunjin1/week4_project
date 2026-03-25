@@ -10,12 +10,13 @@
 const VDOMEngine = window.VDOMEngine;
 const { NODE_TYPE, PATCH_TYPES } = VDOMEngine;
 
-const GRAPH_POINT_LIMIT = 90;
+const GRAPH_POINT_LIMIT = 60;
+const BENCHMARK_FEED_LIMIT = 10;
 const BENCHMARK_BURST_TICKS = 30;
-const BENCHMARK_MAX_CONTINUOUS_MS = 5000;
+const BENCHMARK_MAX_CONTINUOUS_MS = 4000;
 const BENCHMARK_MIN_DELAY_MS = 34;
 const BENCHMARK_TARGET_UTILIZATION = 0.55;
-const BENCHMARK_UI_REFRESH_MS = 90;
+const BENCHMARK_UI_REFRESH_MS = 140;
 const BENCHMARK_PHASES = ["warm-up", "pressure", "peak", "cooldown"];
 const MODE_LABELS = {
   mixed: "Mixed",
@@ -33,29 +34,35 @@ const BENCHMARK_PRESETS = {
     mutationRatio: 0.08,
     reorderEvery: 3,
     layoutReadEvery: 8,
-    rootLayoutReads: 0
+    rootLayoutReads: 0,
+    imperativeScanPasses: 1,
+    imperativeRequery: false
   },
   favorable: {
-    label: "VDOM 유리",
-    description: "큰 트리 + 국소 변경 + layout read 혼합",
-    mode: "mixed",
-    frequency: 10,
-    itemCount: 160,
-    mutationRatio: 0.04,
-    reorderEvery: 4,
-    layoutReadEvery: 6,
-    rootLayoutReads: 1
+    label: "VDOM 유리 극대화",
+    description: "큰 트리 + 희소 변경 + 반복 selector walk + 강한 layout read 압력",
+    mode: "attr",
+    frequency: 8,
+    itemCount: 320,
+    mutationRatio: 0.01,
+    reorderEvery: 9999,
+    layoutReadEvery: 1,
+    rootLayoutReads: 6,
+    imperativeScanPasses: 6,
+    imperativeRequery: true
   },
   unfavorable: {
-    label: "VDOM 불리",
-    description: "작은 트리 + 거의 전체 변경 + layout read 낮음",
-    mode: "text",
-    frequency: 6,
-    itemCount: 24,
+    label: "직접 DOM 유리 극대화",
+    description: "중간 트리 + 전체 재정렬 + cached walk만 유지",
+    mode: "list",
+    frequency: 8,
+    itemCount: 96,
     mutationRatio: 1,
-    reorderEvery: 9999,
+    reorderEvery: 1,
     layoutReadEvery: 0,
-    rootLayoutReads: 0
+    rootLayoutReads: 0,
+    imperativeScanPasses: 1,
+    imperativeRequery: false
   }
 };
 
@@ -242,6 +249,17 @@ function getElements() {
   );
 }
 
+function hasManualLabUi() {
+  return Boolean(
+    state.ui.realDomRoot &&
+    state.ui.testDomRoot &&
+    state.ui.sourceEditor &&
+    state.ui.patchButton &&
+    state.ui.historyPanel &&
+    state.ui.treeNodeTemplate
+  );
+}
+
 function cloneValue(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
@@ -302,7 +320,8 @@ function getCurrentPresetMeta() {
 
 function getLoadAdvisory(config = state.benchmark.config) {
   const readPressure = config.layoutReadEvery > 0 ? 8 / config.layoutReadEvery + config.rootLayoutReads * 1.2 : 0.3;
-  const loadScore = (config.frequency * config.itemCount / 32) * (1 + readPressure);
+  const scanPressure = Math.max(1, config.imperativeScanPasses || 1) * (config.imperativeRequery ? 1.4 : 0.45);
+  const loadScore = (config.frequency * config.itemCount / 32) * (1 + readPressure + scanPressure);
 
   if (loadScore >= 70) {
     return {
@@ -729,6 +748,8 @@ function applyImperativeBenchmarkUpdate(root, model) {
   const cards = Array.from(root.querySelectorAll(".runtime-node"));
   const layoutReadEvery = state.benchmark.config.layoutReadEvery;
   const rootLayoutReads = state.benchmark.config.rootLayoutReads;
+  const scanPasses = Math.max(1, state.benchmark.config.imperativeScanPasses || 1);
+  const imperativeRequery = Boolean(state.benchmark.config.imperativeRequery);
   if (!shell || cards.length !== model.items.length) {
     root.innerHTML = renderBenchmarkHTML(model);
     return;
@@ -768,36 +789,53 @@ function applyImperativeBenchmarkUpdate(root, model) {
 
     if (!card._ui) {
       card._ui = {
-        name: card.querySelector(".runtime-node__head strong"),
-        lane: card.querySelector(".runtime-node__head .runtime-badge"),
-        message: card.querySelector("p"),
-        meta0: card.querySelectorAll(".runtime-node__meta > *")[0],
-        meta1: card.querySelectorAll(".runtime-node__meta > *")[1],
-        badge0: card.querySelectorAll(".runtime-node__badges .runtime-badge")[0],
-        badge1: card.querySelectorAll(".runtime-node__badges .runtime-badge")[1]
+        title: card.querySelector(".runtime-node__title"),
+        stats: card.querySelector(".runtime-node__stats")
       };
     }
     const ui = card._ui;
 
-    if (ui.name.textContent !== item.name) { ui.name.textContent = item.name; mutations++; }
-    if (ui.lane.textContent !== item.lane) { ui.lane.textContent = item.lane; mutations++; }
-    if (ui.message.textContent !== item.message) { ui.message.textContent = item.message; mutations++; }
+    const titleText = `${item.name} · ${item.lane}`;
+    if (ui.title.textContent !== titleText) { ui.title.textContent = titleText; mutations++; }
 
-    const priceText = `₩${item.price.toLocaleString("ko-KR")}`;
-    if (ui.meta0.textContent !== priceText) { ui.meta0.textContent = priceText; mutations++; }
-
-    const stockText = `${item.stock} left`;
-    if (ui.meta1.textContent !== stockText) { ui.meta1.textContent = stockText; mutations++; }
-
-    if (ui.badge0.textContent !== item.pressure) { ui.badge0.textContent = item.pressure; mutations++; }
-
-    const hotBadge = item.hot ? "hot" : "steady";
-    if (ui.badge1.textContent !== hotBadge) { ui.badge1.textContent = hotBadge; mutations++; }
+    const statsText = `₩${item.price.toLocaleString("ko-KR")} · ${item.stock} left`;
+    if (ui.stats.textContent !== statsText) { ui.stats.textContent = statsText; mutations++; }
 
     if (layoutReadEvery > 0 && index % layoutReadEvery === 0) {
       void card.offsetHeight;
     }
   });
+
+  for (let pass = 1; pass < scanPasses; pass += 1) {
+    const scanCards = imperativeRequery
+      ? Array.from(root.querySelectorAll(".runtime-node"))
+      : cards;
+
+    scanCards.forEach((card, index) => {
+      const titleNode = imperativeRequery
+        ? card.querySelector(".runtime-node__title")
+        : card._ui?.title;
+      const statsNode = imperativeRequery
+        ? card.querySelector(".runtime-node__stats")
+        : card._ui?.stats;
+
+      if (titleNode) {
+        void titleNode.textContent;
+      }
+      if (statsNode) {
+        void statsNode.textContent;
+      }
+      if (layoutReadEvery > 0 && index % layoutReadEvery === 0) {
+        void card.offsetHeight;
+      }
+    });
+
+    if (imperativeRequery) {
+      root.querySelectorAll(".runtime-kpi strong").forEach((node) => {
+        void node.textContent;
+      });
+    }
+  }
 
   for (let index = 0; index < rootLayoutReads; index += 1) {
     void root.offsetHeight;
@@ -817,19 +855,8 @@ function renderBenchmarkHTML(model) {
     .map(
       (item) => `
         <article class="runtime-node" data-key="${escapeHTML(item.id)}" data-hot="${item.hot ? "true" : "false"}" data-pressure="${escapeHTML(item.pressure)}">
-          <div class="runtime-node__head">
-            <strong>${escapeHTML(item.name)}</strong>
-            <span class="runtime-badge">${escapeHTML(item.lane)}</span>
-          </div>
-          <p>${escapeHTML(item.message)}</p>
-          <div class="runtime-node__meta">
-            <span>₩${escapeHTML(item.price.toLocaleString("ko-KR"))}</span>
-            <strong>${escapeHTML(String(item.stock))} left</strong>
-          </div>
-          <div class="runtime-node__badges">
-            <span class="runtime-badge">${escapeHTML(item.pressure)}</span>
-            <span class="runtime-badge">${item.hot ? "hot" : "steady"}</span>
-          </div>
+          <strong class="runtime-node__title">${escapeHTML(item.name)} · ${escapeHTML(item.lane)}</strong>
+          <span class="runtime-node__stats">₩${escapeHTML(item.price.toLocaleString("ko-KR"))} · ${escapeHTML(String(item.stock))} left</span>
         </article>
       `
     )
@@ -881,19 +908,8 @@ function renderBenchmarkVNode(model) {
       "data-hot": item.hot ? "true" : "false",
       "data-pressure": item.pressure
     }, [
-      createElementVNode("div", { class: "runtime-node__head" }, [
-        createElementVNode("strong", {}, [item.name]),
-        createElementVNode("span", { class: "runtime-badge" }, [item.lane])
-      ]),
-      createElementVNode("p", {}, [item.message]),
-      createElementVNode("div", { class: "runtime-node__meta" }, [
-        createElementVNode("span", {}, [`₩${item.price.toLocaleString("ko-KR")}`]),
-        createElementVNode("strong", {}, [`${item.stock} left`])
-      ]),
-      createElementVNode("div", { class: "runtime-node__badges" }, [
-        createElementVNode("span", { class: "runtime-badge" }, [item.pressure]),
-        createElementVNode("span", { class: "runtime-badge" }, [item.hot ? "hot" : "steady"])
-      ])
+      createElementVNode("strong", { class: "runtime-node__title" }, [`${item.name} · ${item.lane}`]),
+      createElementVNode("span", { class: "runtime-node__stats" }, [`₩${item.price.toLocaleString("ko-KR")} · ${item.stock} left`])
     ])
   );
 
@@ -1024,7 +1040,6 @@ function flushBenchmarkUi() {
   renderBenchmarkMetrics();
   renderBenchmarkFeed();
   renderPerformancePanel();
-  renderExplanationPanel();
   scheduleGraphDraw();
 }
 
@@ -1100,7 +1115,7 @@ function setupBenchmarkObservers() {
 
 function recordBenchmarkEntry(entry) {
   state.benchmark.feed.unshift(entry);
-  state.benchmark.feed = state.benchmark.feed.slice(0, 18);
+  state.benchmark.feed = state.benchmark.feed.slice(0, BENCHMARK_FEED_LIMIT);
 }
 
 function runBenchmarkTick() {
@@ -1470,6 +1485,7 @@ function renderBenchmarkMetrics() {
   const latestVDOM = vdomSeries[vdomSeries.length - 1] || 0;
   const latestRedraw = redrawSeries[redrawSeries.length - 1] || 0;
   const gap = latestRedraw - latestVDOM;
+  const directWalkEstimate = state.benchmark.config.itemCount * Math.max(1, state.benchmark.config.imperativeScanPasses || 1);
 
   state.ui.vdomCurrentLatency.textContent = formatMs(latestVDOM);
   state.ui.redrawCurrentLatency.textContent = formatMs(latestRedraw);
@@ -1481,7 +1497,7 @@ function renderBenchmarkMetrics() {
   state.ui.redrawP95Latency.textContent = formatMs(percentile(redrawSeries, 0.95));
   state.ui.vdomMutationTotal.textContent = String(state.benchmark.mutationTotals.vdom);
   state.ui.redrawMutationTotal.textContent = String(state.benchmark.mutationTotals.redraw);
-  state.ui.patchAverageChip.textContent = `avg patches ${average(patchSeries).toFixed(1)}`;
+  state.ui.patchAverageChip.textContent = `avg patches ${average(patchSeries).toFixed(1)} · direct walk ${directWalkEstimate.toLocaleString("ko-KR")}/tick`;
   updateBenchmarkStatusText();
   renderBenchmarkPresetState();
 }
@@ -1516,6 +1532,10 @@ function renderBenchmarkFeed() {
 
 function renderPerformancePanel() {
   const panel = state.ui.performancePanel;
+  if (!panel) {
+    return;
+  }
+
   const vdomAvg = average(state.benchmark.series.vdom);
   const redrawAvg = average(state.benchmark.series.redraw);
   const deltaAvg = average(state.benchmark.series.delta);
@@ -1529,80 +1549,54 @@ function renderPerformancePanel() {
     1,
     Math.round(state.benchmark.config.itemCount * state.benchmark.config.mutationRatio)
   );
+  const hasSamples = state.benchmark.series.vdom.length > 0 && state.benchmark.series.redraw.length > 0;
+  const scanPasses = Math.max(1, state.benchmark.config.imperativeScanPasses || 1);
+  const scanProfile = state.benchmark.config.imperativeRequery
+    ? `반복 selector walk ${scanPasses}회`
+    : `단일 cached walk ${scanPasses}회`;
+  const speedRatioBase = deltaAvg >= 0
+    ? redrawAvg / Math.max(vdomAvg, 0.05)
+    : vdomAvg / Math.max(redrawAvg, 0.05);
+  const speedRatio = Number.isFinite(speedRatioBase) ? speedRatioBase : 0;
+  const speedMessage = deltaAvg >= 0
+    ? `VDOM이 직접 DOM 대비 약 ${speedRatio.toFixed(1)}배 빠른 구간입니다.`
+    : `직접 DOM이 VDOM 대비 약 ${speedRatio.toFixed(1)}배 빠른 구간입니다.`;
+  const directWalkEstimate = state.benchmark.config.itemCount * scanPasses;
+  const trendMessage = !hasSamples
+    ? "아직 실행 데이터가 없습니다."
+    : deltaAvg >= 0
+    ? "현재 설정에서는 VDOM 쪽이 평균적으로 더 빠릅니다."
+    : "현재 설정에서는 직접 DOM 조작 쪽이 평균적으로 더 빠릅니다.";
+  const causeMessage = deltaAvg >= 0
+    ? "큰 트리에서 일부만 바뀌고 직접 DOM 쪽에 반복 selector walk와 layout read가 섞이면 patch 방식의 이점이 커집니다."
+    : "작은 트리에서 거의 전체가 매 tick 바뀌면 diff bookkeeping이 오히려 부담이 될 수 있습니다.";
 
   panel.innerHTML = `
     <div class="summary-block">
-      <strong>현재 프리셋</strong>
-      <p>${preset.label} 설정입니다. ${preset.description}. 현재 부하 상태는 ${advisory.label}입니다.</p>
+      <strong>현재 해석</strong>
+      <p>${hasSamples ? `${trendMessage} 평균 gap은 ${formatMs(deltaAvg)}, p95 gap은 ${formatMs(deltaP95)}입니다. ${speedMessage}` : "버스트 30회 또는 연속 시작을 실행하면 평균 gap, p95, 속도 배수가 여기 표시됩니다."}</p>
     </div>
     <div class="summary-block">
-      <strong>UI 보호 모드</strong>
-      <p>연속 실행은 고정 setInterval이 아니라 보호형 스케줄러로 동작합니다. 최근 tick 비용이 높아지면 자동 감속하고, 연속 실행은 ${BENCHMARK_MAX_CONTINUOUS_MS / 1000}초 뒤 자동 중지해 클릭 응답성을 지키도록 설계했습니다.</p>
+      <strong>왜 이런 결과가 나왔나</strong>
+      <p>${causeMessage} 현재 설정은 ${preset.label} 프리셋이며, ${preset.description} 조건입니다.</p>
     </div>
     <div class="summary-block">
-      <strong>비교 해석</strong>
-      <p>현재 설정에서 VDOM 평균은 ${formatMs(vdomAvg)}, no-VDOM imperative walk 평균은 ${formatMs(redrawAvg)}입니다. 평균 기준 우세한 쪽은 ${fasterRuntime}이고, gap 평균은 ${formatMs(deltaAvg)}, gap p95는 ${formatMs(deltaP95)}입니다.</p>
+      <strong>실험 조건</strong>
+      <p>전체 노드 수 ${state.benchmark.config.itemCount}개, tick당 예상 변경 노드 ${expectedChangedNodes}개, 초당 요청 빈도 ${state.benchmark.config.frequency}회, 직접 DOM 기준선은 ${scanProfile}입니다. 즉 직접 DOM은 tick당 카드 ${directWalkEstimate.toLocaleString("ko-KR")}개를 훑고, VDOM은 주로 ${expectedChangedNodes}개 수준의 변경만 patch하려는 조건입니다.</p>
     </div>
     <div class="summary-block">
-      <strong>Patch 관점</strong>
-      <p>최근 트리 크기는 약 ${state.benchmark.latestNodeCount} nodes이고, 현재 설정에서 tick당 예상 변경 노드 수는 약 ${expectedChangedNodes}개입니다. 실제 평균 patch 수는 ${patchAvg.toFixed(1)}개입니다.</p>
+      <strong>관측 지표</strong>
+      <p>VDOM 평균 ${formatMs(vdomAvg)}, 직접 DOM 평균 ${formatMs(redrawAvg)}, 평균 patch 수 ${patchAvg.toFixed(1)}개입니다.</p>
     </div>
     <div class="summary-block">
-      <strong>MutationObserver 관점</strong>
-      <p>누적 DOM mutation은 VDOM ${state.benchmark.mutationTotals.vdom}회, no-VDOM imperative walk ${state.benchmark.mutationTotals.redraw}회입니다. 최근 추정 절감 DOM touches는 약 ${estimatedSavings}개입니다.</p>
+      <strong>브라우저 보호</strong>
+      <p>현재 부하 상태는 ${advisory.label}입니다. 연속 실행은 자동 감속되고 ${BENCHMARK_MAX_CONTINUOUS_MS / 1000}초 뒤 중지되어 클릭 응답성을 지키도록 제한했습니다.</p>
+    </div>
+    <div class="summary-block">
+      <strong>DOM 작업량</strong>
+      <p>누적 mutation은 VDOM ${state.benchmark.mutationTotals.vdom}회, 직접 DOM ${state.benchmark.mutationTotals.redraw}회입니다. 최근 추정 절감 DOM touches는 약 ${estimatedSavings}개입니다.</p>
     </div>
   `;
-}
-
-function renderExplanationPanel() {
-  const mode = MODE_LABELS[state.benchmark.config.mode];
-  const vdomAvg = average(state.benchmark.series.vdom);
-  const redrawAvg = average(state.benchmark.series.redraw);
-  const gap = redrawAvg - vdomAvg;
-  const preset = getCurrentPresetMeta();
-  const expectedChangedNodes = Math.max(
-    1,
-    Math.round(state.benchmark.config.itemCount * state.benchmark.config.mutationRatio)
-  );
-
-  state.ui.explanationPanel.innerHTML = `
-    <section class="explanation-block">
-      <h3>왜 이 콘솔이 React를 설명하는가</h3>
-      <p>이 콘솔은 같은 상태 변화 stream을 두 방식에 동시에 주입합니다. 하나는 이전 Virtual DOM과 새 Virtual DOM을 비교해 patch만 적용하고, 다른 하나는 Virtual DOM 없이 현재 DOM을 직접 순회하며 값을 덮어쓰고 layout read까지 섞습니다. 즉 React-style reconciliation과 layout-sensitive imperative update를 직접 비교하는 화면입니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>왜 연속 실행을 보호형으로 바꿨는가</h3>
-      <p>이 콘솔의 목적은 브라우저를 멈추게 하는 것이 아니라, 같은 조건에서 두 업데이트 전략을 비교하는 것입니다. 그래서 연속 스트림은 처리 시간이 늘어나면 자동 감속하고, MutationObserver와 설명 패널 갱신도 묶어서 한 번씩만 반영하도록 바꿨습니다. 즉 비교 실험은 유지하면서 노트북 입력이 막히는 상황을 줄이는 방향으로 조정했습니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>현재 벤치마크 읽는 법</h3>
-      <ul>
-        <li>Mutation mode는 지금 어떤 종류의 변화가 들어가는지를 뜻합니다. 현재는 <strong>${escapeHTML(mode)}</strong>입니다.</li>
-        <li>트리 크기는 <strong>${state.benchmark.config.itemCount} nodes</strong>이고, 한 tick에서 바뀌는 범위는 <strong>${getMutationScopeText(state.benchmark.config.itemCount, state.benchmark.config.mutationRatio)}</strong>입니다.</li>
-        <li>그래프는 tick마다 측정한 처리 시간을 누적해 보여줍니다.</li>
-        <li>VDOM 곡선은 diff + patch 시간을, No VDOM 곡선은 imperative DOM walk 시간을 의미합니다.</li>
-        <li>현재 평균 gap은 ${formatMs(gap)}입니다. 값이 양수면 no-VDOM 쪽이 더 느린 구간입니다.</li>
-      </ul>
-    </section>
-    <section class="explanation-block">
-      <h3>지금 설정에서 왜 이런 결과가 나오는가</h3>
-      <p>현재 프리셋은 <strong>${escapeHTML(preset.label)}</strong>입니다. ${escapeHTML(preset.description)}. 즉 전체 트리 크기 ${state.benchmark.config.itemCount}개 중 약 ${expectedChangedNodes}개를 tick마다 흔들고, layout read 빈도까지 함께 바꿔서 VDOM bookkeeping이 유리한지, 아니면 수동 DOM walk가 더 단순한지 확인하게 설계했습니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>왜 비교군을 Imperative Walk로 두었나</h3>
-      <p>Virtual DOM을 쓰지 않는다고 해서 무조건 전체 redraw만 하는 것은 아닙니다. 흔한 대안은 현재 DOM을 직접 순회하며 필요한 값을 하나씩 덮어쓰는 방식입니다. 이 baseline은 상태가 여러 영역에 퍼질수록 수동 동기화 비용이 커지고, 읽기와 쓰기가 섞일 때 reflow 부담이 커질 수 있다는 점을 보여주기 좋습니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>프리셋 가이드</h3>
-      <ul>
-        <li>VDOM 유리: 큰 트리에 작은 변화가 흩어져 있고 layout read가 섞일 때 patch의 이점이 크게 보입니다.</li>
-        <li>VDOM 불리: 트리가 작고 거의 전체가 다시 계산되며 direct DOM walk가 단순할 때 bookkeeping overhead가 더 크게 드러납니다.</li>
-        <li>균형: 두 방식의 차이가 자연스럽게 드러나는 기본 시연용 설정입니다.</li>
-      </ul>
-    </section>
-  `;
-
-  renderPerformancePanel();
 }
 
 function drawGraph() {
@@ -1743,27 +1737,28 @@ function bindEvents() {
     );
     renderBenchmarkPresetState();
     renderPerformancePanel();
-    renderExplanationPanel();
   });
 
   state.ui.mutationRatioRange.addEventListener("change", resetBenchmark);
 
-  state.ui.patchButton.addEventListener("click", handlePatch);
-  state.ui.backButton.addEventListener("click", goBack);
-  state.ui.forwardButton.addEventListener("click", goForward);
-  state.ui.resetButton.addEventListener("click", resetManualLab);
-  state.ui.syncSourceButton.addEventListener("click", syncTestFromSourceEditor);
+  if (hasManualLabUi()) {
+    state.ui.patchButton.addEventListener("click", handlePatch);
+    state.ui.backButton.addEventListener("click", goBack);
+    state.ui.forwardButton.addEventListener("click", goForward);
+    state.ui.resetButton.addEventListener("click", resetManualLab);
+    state.ui.syncSourceButton.addEventListener("click", syncTestFromSourceEditor);
 
-  state.ui.testDomRoot.addEventListener("input", () => {
-    syncSourceEditorFromTest();
-    state.ui.editorMessage.textContent = "테스트 영역이 변경되었습니다. Patch를 눌러 diff 결과를 확인하세요.";
-  });
+    state.ui.testDomRoot.addEventListener("input", () => {
+      syncSourceEditorFromTest();
+      state.ui.editorMessage.textContent = "테스트 영역이 변경되었습니다. Patch를 눌러 diff 결과를 확인하세요.";
+    });
 
-  state.ui.sourceEditor.addEventListener("input", () => {
-    state.ui.editorMessage.textContent = "소스 에디터가 변경되었습니다. 동기화 후 Patch를 실행하세요.";
-  });
+    state.ui.sourceEditor.addEventListener("input", () => {
+      state.ui.editorMessage.textContent = "소스 에디터가 변경되었습니다. 동기화 후 Patch를 실행하세요.";
+    });
 
-  state.ui.historyPanel.addEventListener("click", handleHistoryClick);
+    state.ui.historyPanel.addEventListener("click", handleHistoryClick);
+  }
 
   window.addEventListener("resize", scheduleGraphDraw);
   document.addEventListener("visibilitychange", () => {
@@ -1781,33 +1776,11 @@ function init() {
   state.ui = getElements();
   bindEvents();
   resetBenchmark();
-  resetManualLab();
+  if (hasManualLabUi()) {
+    resetManualLab();
+  }
   window.__VDOM_CONSOLE__ = state;
   scheduleGraphDraw();
-
-  // Premium Customization: Micro-interaction pulse on data update
-  try {
-    const metricObserver = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        let target = mutation.target.nodeType === 3 ? mutation.target.parentElement : mutation.target;
-        if (target && target.classList) {
-          target.classList.remove("pulse-update");
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              target.classList.add("pulse-update");
-            });
-          });
-        }
-      });
-    });
-
-    const metricCards = document.querySelectorAll(".metric-card strong, .runtime-meta__item strong, #patchSummary");
-    metricCards.forEach(card => {
-      metricObserver.observe(card, { characterData: true, childList: true, subtree: true });
-    });
-  } catch (err) {
-    console.error("Micro-interaction init failed:", err);
-  }
 }
 
 window.addEventListener("DOMContentLoaded", init);
