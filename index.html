@@ -1,316 +1,79 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Virtual DOM + Diff Algorithm Lab</title>
-    <link rel="icon" href="data:," />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body class="service-demo-body">
-    <div class="service-app">
-      <header class="store-topbar">
-        <button id="serviceHomeButton" class="store-brand store-brand--button" type="button">
-          <span class="store-brand__mark">FD</span>
-          <div>
-            <strong>FlashDrop Live</strong>
-            <span>멤버 전용 드롭</span>
-          </div>
-        </button>
-        <nav class="store-nav" aria-label="Primary">
-          <a href="#serviceStateTitle">이번 드롭</a>
-          <a href="#serviceStateBody">멤버십</a>
-          <a href="#realDomRoot">이용 흐름</a>
-        </nav>
-        <div class="store-utility">
-          <span>찜 12</span>
-          <span>장바구니 01</span>
-          <span>내 계정</span>
-          <button id="openWorkbenchButton" class="button button--small store-utility__button" type="button">검증 패널 열기</button>
-        </div>
-      </header>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>통합 가상 DOM 플랫폼</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./dashboard.css">
+</head>
+<body title="전체 애플리케이션 화면입니다.">
+    <!-- Animated Aurora Background -->
+    <div class="aurora-bg" title="동적 오로라 배경 애니메이션 요소입니다."></div>
 
-      <main class="service-main">
-        <section class="service-copy">
-          <p class="service-copy__eyebrow" id="serviceStateEyebrow">오늘의 한정 드롭</p>
-          <h1 id="serviceStateTitle">멤버 전용 프리뷰가 진행 중입니다</h1>
-          <p id="serviceStateBody">
-            AURA Runner 01 한정 드롭이 곧 열립니다. 사용자는 이 화면에서 멤버 입장, 번들 예약,
-            주문 요약 전환, 추천 순서 변경 같은 실시간 구매 흐름을 경험합니다.
-          </p>
-
-          <div class="service-benefits">
-            <article class="service-benefit">
-              <span>진행 상태</span>
-              <strong id="serviceModeValue">멤버 프리뷰</strong>
-              <p>오픈 전 기준 상태</p>
-            </article>
-            <article class="service-benefit">
-              <span>대표 상품</span>
-              <strong>AURA Runner 01</strong>
-              <p>서울 리미티드 컬러웨이</p>
-            </article>
-            <article class="service-benefit">
-              <span>출고</span>
-              <strong>당일 발송</strong>
-              <p>오후 6시 전 결제 시 당일 발송</p>
-            </article>
-          </div>
-
-          <div class="service-journey">
-            <strong>이 흐름으로 사용해보세요</strong>
-            <p>서비스 화면 안에서 멤버 입장, 번들 담기, 주문서 열기, 결제 완료, 추천순 정렬을 순서대로 눌러 실제 구매 흐름처럼 사용해보세요.</p>
-          </div>
-
-          <section class="service-adoption" aria-labelledby="serviceReasonTitle">
-            <div class="service-adoption__head">
-              <strong id="serviceReasonTitle">왜 이 화면에 React-style 방식이 맞나</strong>
-              <span id="serviceReasonPatch">기본 상태</span>
+    <div class="app-shell" title="메인 대시보드 쉘 영역입니다.">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" title="안내 메뉴가 있는 사이드바입니다.">
+            <div class="sidebar__brand" title="플랫폼 로고 요소입니다.">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    가상 DOM <span class="highlight">스튜디오</span>
+                </div>
+                <p class="subtitle" title="통합 실행 환경을 의미합니다.">통합 실행 쉘 (Unified Shell)</p>
             </div>
-            <p id="serviceReasonBody">
-              이 화면은 hero, 드롭 현황, 드롭 백, 추천 영역이 같은 상태를 공유합니다. 그래서 영역마다 DOM을 수동으로 고치기보다 상태 기준으로 새 UI 트리를 만들고 필요한 부분만 patch하는 방식이 더 자연스럽습니다.
-            </p>
-            <div class="service-adoption__grid">
-              <article class="service-proof">
-                <span>한 번에 바뀌는 영역</span>
-                <strong id="serviceImpactAreas">Hero · 드롭 현황 · 드롭 백 · 추천 영역</strong>
-                <p id="serviceImpactSummary">멤버 입장 여부 하나만 바뀌어도 여러 카드가 동시에 갱신됩니다.</p>
-              </article>
-              <article class="service-proof">
-                <span>직접 DOM 대비 이점</span>
-                <strong id="serviceReasonBenefit">상태 한 번으로 전체 UI를 다시 계산</strong>
-                <p id="serviceReasonCompare">직접 DOM 조작이라면 각 카드의 텍스트, 버튼 상태, 배지, 리스트 순서를 따로 찾아 바꿔야 합니다.</p>
-              </article>
-            </div>
-          </section>
 
-          <div class="service-footnotes">
-            <span>무료 반품</span>
-            <span>멤버 선오픈</span>
-            <span>안전 결제</span>
-          </div>
-        </section>
+            <nav class="sidebar__nav" title="앱의 모듈을 전환하는 내비게이션 바입니다.">
+                <button class="nav-btn active" data-target="./benchmark/index.html" data-title="성능 벤치마크 엔진" title="가상 DOM과 실제 DOM의 속도를 테스트할 수 있는 벤치마크 탭으로 이동합니다.">
+                    <span class="icon">🚀</span>
+                    <span class="text" title="성능 벤치마크 엔진">성능 벤치마크 엔진</span>
+                    <span class="desc" title="속도 테스트 및 벤치마크 결과를 확인합니다.">속도 테스트 및 성능 측정</span>
+                </button>
+                <button class="nav-btn" data-target="./demo-lab/index.html" data-title="Demo Lab" title="실제 영역과 테스트 영역에서 Virtual DOM, Diff, Patch를 검증하는 Demo Lab 탭으로 이동합니다.">
+                    <span class="icon">🧪</span>
+                    <span class="text" title="Demo Lab">Demo Lab</span>
+                    <span class="desc" title="실제 DOM과 테스트 DOM을 비교하며 패치를 검증합니다.">Diff / Patch 검증 실험실</span>
+                </button>
+            </nav>
 
-        <section class="service-stage">
-          <div class="stage-shell">
-            <div class="stage-shell__bar">
-              <span></span>
-              <span></span>
-              <span></span>
+            <div class="sidebar__footer" title="사이드바 하단 영역으로 시스템 상태를 나타냅니다.">
+                <div class="status-indicator" title="모든 시스템 모듈이 정상적으로 가동 중이라는 상태를 의미합니다.">
+                    <div class="dot pulse"></div>
+                    모든 시스템 정상 가동 중
+                </div>
             </div>
-            <div class="stage-shell__label">
-              <span>실제 영역</span>
-              <strong>사용자에게 보이는 서비스 화면</strong>
+        </aside>
+
+        <!-- Main Workspace (Iframe Switcher) -->
+        <main class="workspace" title="실제 앱 컨트롤 모듈이 표시되는 중앙 작업 영역입니다.">
+            <header class="workspace__header" title="보고 계신 모듈의 이름과 기능을 나타내는 상단 헤더입니다.">
+                <div title="현재 모듈 제목 정보입니다.">
+                    <h1 id="view-title" title="현재 열려있는 모듈의 이름입니다.">성능 벤치마크 엔진</h1>
+                    <p class="view-subtitle" title="플랫폼 내 안전하게 격리되어 실행되는 모듈 환경이라는 의미입니다.">독립 병합 모듈 컨텍스트</p>
+                </div>
+                <div class="workspace__actions" title="현재 구동 중인 앱을 제어하는 상단 버튼 영역입니다.">
+                    <button class="action-btn" id="reload-btn" title="현재 메뉴 새로고침: 내부 Iframe 앱을 다시 로드합니다.">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                    </button>
+                    <button class="action-btn" id="fullscreen-btn" title="전체 화면 켜기/끄기: 앱을 전체 화면 모드로 띄워 넓게 봅니다.">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    </button>
+                </div>
+            </header>
+            
+            <div class="iframe-container">
+                <div class="loading-overlay active" id="loading-overlay">
+                    <div class="spinner"></div>
+                </div>
+                <!-- Frame holds the actual sub-projects without CSS collision -->
+                <iframe id="main-frame" src="./benchmark/index.html" frameborder="0"></iframe>
             </div>
-            <div class="dom-stage dom-stage--service">
-              <div id="realDomRoot" class="dom-surface dom-surface--service" aria-label="Live Service Screen"></div>
-              <div id="realDomOverlay" class="dom-overlay" aria-hidden="true"></div>
-            </div>
-          </div>
-        </section>
-      </main>
+        </main>
     </div>
 
-    <button id="workbenchBackdrop" class="workbench-backdrop" type="button" aria-label="검증 패널 닫기"></button>
-    <aside id="workbenchShell" class="workbench-shell" aria-hidden="true" aria-label="검증 패널">
-      <div class="workbench-panel">
-        <header class="workbench-panel__header">
-          <div>
-            <p class="section-label">Admin Console</p>
-            <h2>Virtual DOM 검증 패널</h2>
-            <p class="workbench-panel__copy">서비스는 그대로 두고, 테스트 영역과 patch 로그를 이 패널에서 검증합니다.</p>
-          </div>
-          <button id="closeWorkbenchButton" class="button button--ghost button--small" type="button">닫기</button>
-        </header>
-
-        <div class="workbench-panel__body">
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Run State</p>
-                <h3 id="currentStateLabel">초기 상태</h3>
-              </div>
-              <span id="patchSummary" class="chip chip--slate">초기화 전</span>
-            </div>
-            <p id="currentStateDescription" class="helper-text">앱 초기화 전</p>
-            <div class="workbench-meta">
-              <div class="workbench-meta__item">
-                <span>History</span>
-                <strong id="historyMeta">0 / 0</strong>
-              </div>
-              <div class="workbench-meta__item">
-                <span>Patch</span>
-                <strong id="patchCountMeta">0</strong>
-              </div>
-              <div class="workbench-meta__item">
-                <span>Tree</span>
-                <strong id="treeMeta">nodes: 0</strong>
-              </div>
-              <div class="workbench-meta__item">
-                <span>Depth</span>
-                <strong id="depthMeta">depth: 0</strong>
-              </div>
-              <div class="workbench-meta__item">
-                <span>Observer</span>
-                <strong id="observerMeta">Idle</strong>
-              </div>
-            </div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Controls</p>
-                <h3>Patch / History 제어</h3>
-              </div>
-            </div>
-            <div class="toolbar-actions">
-              <button id="patchButton" class="button button--primary" type="button">Patch 적용</button>
-              <button id="backButton" class="button" type="button">뒤로가기</button>
-              <button id="forwardButton" class="button" type="button">앞으로가기</button>
-              <button id="resetButton" class="button button--ghost" type="button">초기 상태 복원</button>
-            </div>
-            <div class="toolbar-actions toolbar-actions--compact">
-              <button id="syncSourceButton" class="button button--small" type="button">테스트 영역에 반영</button>
-              <button id="playbackToggleButton" class="button button--small" type="button">재생</button>
-              <button id="playbackNextButton" class="button button--small" type="button">다음 Step</button>
-              <button id="playbackResetButton" class="button button--small" type="button">처음으로</button>
-              <button id="demoTourButton" class="button button--small" type="button">Demo Tour 시작</button>
-              <button id="demoFocusButton" class="button button--small" type="button">핵심 Patch 보기</button>
-            </div>
-            <div class="workbench-inline-status">
-              <p id="editorMessage" class="helper-text">ready</p>
-              <p id="playbackStatus" class="helper-text">idle</p>
-              <p id="demoTourStatus" class="helper-text">idle</p>
-            </div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Real / Test</p>
-                <h3>실제 영역과 테스트 영역</h3>
-              </div>
-            </div>
-            <div class="workbench-grid workbench-grid--two">
-              <article class="workbench-subcard">
-                <div class="workbench-subcard__header">
-                  <strong>실제 영역</strong>
-                  <span class="chip chip--slate">메인 서비스 화면</span>
-                </div>
-                <p class="helper-text">왼쪽 서비스 화면이 실제 영역입니다. Patch를 적용하면 메인 서비스 UI가 직접 갱신됩니다.</p>
-              </article>
-              <article class="workbench-subcard">
-                <div class="workbench-subcard__header">
-                  <strong>테스트 영역</strong>
-                  <span class="chip chip--blue">수정 가능</span>
-                </div>
-                <div class="workbench-test-stage">
-                  <div id="testDomRoot" class="dom-surface dom-surface--editable" contenteditable="true" aria-label="Test Area"></div>
-                  <div id="testDomOverlay" class="dom-overlay" aria-hidden="true"></div>
-                </div>
-                <label class="sr-only" for="sourceEditor">HTML Source Editor</label>
-                <textarea id="sourceEditor" class="source-editor" spellcheck="false"></textarea>
-              </article>
-            </div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Scenario</p>
-                <h3>서비스 시나리오</h3>
-              </div>
-            </div>
-            <div id="scenarioPanel" class="scenario-grid"></div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Pipeline</p>
-                <h3>Diff / Patch 흐름</h3>
-              </div>
-            </div>
-            <div id="pipelinePanel"></div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Timeline</p>
-                <h3>Patch 재생</h3>
-              </div>
-            </div>
-            <div id="patchTimelinePanel" class="timeline-panel"></div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Logs</p>
-                <h3>Diff 로그 / State History</h3>
-              </div>
-            </div>
-            <div class="workbench-grid workbench-grid--two">
-              <div id="diffLogPanel" class="log-panel"></div>
-              <div id="historyPanel" class="history-panel"></div>
-            </div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Tree</p>
-                <h3>Virtual DOM 트리 / 순회</h3>
-              </div>
-            </div>
-            <div class="workbench-grid workbench-grid--two">
-              <div id="treePanel" class="tree-panel"></div>
-              <div class="workbench-stack">
-                <div id="dfsPanel" class="traversal-panel"></div>
-                <div id="bfsPanel" class="traversal-panel"></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="workbench-card">
-            <div class="workbench-card__header">
-              <div>
-                <p class="section-label">Metrics</p>
-                <h3>설명 / 성능 / 인스펙터</h3>
-              </div>
-            </div>
-            <div class="workbench-grid workbench-grid--two">
-              <div id="performancePanel" class="performance-panel"></div>
-              <div id="inspectorPanel" class="inspector-panel"></div>
-            </div>
-            <div class="workbench-grid workbench-grid--two">
-              <div id="demoBriefingPanel"></div>
-              <div id="demoSignalPanel" class="signal-grid"></div>
-            </div>
-            <div id="explanationPanel" class="explanation-panel"></div>
-          </section>
-        </div>
-      </div>
-    </aside>
-
-    <template id="treeNodeTemplate">
-      <div class="tree-node">
-        <div class="tree-node__line">
-          <span class="tree-node__tag"></span>
-          <span class="tree-node__path"></span>
-        </div>
-        <div class="tree-node__meta"></div>
-      </div>
-    </template>
-
-    <script src="./app.js"></script>
-  </body>
+    <script src="./dashboard.js"></script>
+</body>
 </html>

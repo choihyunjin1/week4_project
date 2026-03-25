@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Virtual DOM & Diff Algorithm Lab</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="page-shell" title="가상 DOM 알고리즘 실습 화면입니다.">
+      <header class="hero" title="이 프로젝트의 목표와 개요를 설명하는 영역입니다.">
+        <p class="hero__eyebrow" title="프레임워크 없이 자바스크립트만으로 구현되었습니다.">순수 자바스크립트 (Vanilla JS) 프로젝트</p>
+        <h1 title="가상 DOM과 차이점 비교(Diff) 알고리즘을 테스트하는 공간입니다.">가상 DOM & 패치 알고리즘 실험실</h1>
+        <p class="hero__body" title="이 실험실의 사용 목적을 나타냅니다.">
+          브라우저 실제 DOM을 가상 DOM으로 변환하고, 이전 상태와 비교(Diff)해 바뀐 부분만 실제 화면에 패치(Patch)하는 과정을
+          검증하는 교육용 워크벤치입니다.
+        </p>
+        <div class="hero__facts" title="프로젝트의 주요 핵심 기술 3가지입니다.">
+          <article class="fact-card" title="브라우저 내장 객체들을 조작합니다.">
+            <span>브라우저 DOM API</span>
+            <strong>Document / Window / Node</strong>
+            <p>브라우저가 가진 실제 DOM 트리를 읽고 직접 조작합니다.</p>
+          </article>
+          <article class="fact-card" title="실제 DOM의 변경 내역을 추적하는 브라우저 내장 기능입니다.">
+            <span>변화 감지 (Mutation Observer)</span>
+            <strong>실제 DOM 변경 추적</strong>
+            <p>패치(Patch) 후 어떤 물리적 요소 변화가 일어났는지 로그로 정확히 확인합니다.</p>
+          </article>
+          <article class="fact-card" title="화면을 다시 그릴 때 발생하는 성능 부하입니다.">
+            <span>렌더링 비용 (Rendering Cost)</span>
+            <strong>리플로우(Reflow) / 리페인트(Repaint)</strong>
+            <p>불필요한 전체 화면 갱신 대신 최소한의 변경만 반영해야 하는 원리를 시각적으로 보여줍니다.</p>
+          </article>
+        </div>
+      </header>
+
+      <section class="control-panel" title="시뮬레이션을 조작하는 상태 컨트롤 패널입니다.">
+        <div class="control-panel__head">
+          <div>
+            <p class="section-label" title="시뮬레이션을 실행하고 제어합니다.">실행 컨트롤 (Execution Control)</p>
+            <h2 title="여기서 패치를 만들거나 상태를 되돌릴 수 있습니다.">알고리즘 연산 실행 및 히스토리 탐색</h2>
+          </div>
+          <div class="control-panel__actions" title="앱 상태 제어 버튼들입니다.">
+            <button id="patchButton" class="button button--primary" type="button" title="입력된 테스트 영역과 실제 화면을 비교하여 바뀐 부분만 업데이트합니다.">새로운 패치 적용 (Diff & Patch)</button>
+            <button id="backButton" class="button" type="button" title="이전 히스토리 상태로 되돌립니다.">이전 (Undo)</button>
+            <button id="forwardButton" class="button" type="button" title="다음 히스토리 상태로 돌아갑니다.">다음 (Redo)</button>
+            <button id="resetButton" class="button" type="button" title="모든 기록과 화면을 첫 상태로 초기화합니다.">전체 초기화</button>
+          </div>
+        </div>
+
+        <div class="meta-grid" title="현재 시뮬레이션의 상세 상태 지표입니다.">
+          <article class="meta-card" title="저장된 상태들 중 현재 몇 번째 상태인지 나타냅니다.">
+            <span>변경 이력 (History)</span>
+            <strong id="historyMeta">0 / 0</strong>
+            <p>현재 포인터가 위치한 기록 번호</p>
+          </article>
+          <article class="meta-card" title="가장 최근 비교(Diff) 수행 시 발견된 변경 사항 개수입니다.">
+            <span>패치 생성 수 (Patch Count)</span>
+            <strong id="patchMeta">0</strong>
+            <p>적용된 최소 변경 지시사항 수</p>
+          </article>
+          <article class="meta-card" title="실제 영역 DOM 트리의 전체 노드 개수입니다.">
+            <span>가상 노드 수 (VNode Count)</span>
+            <strong id="nodeMeta">0</strong>
+            <p>현재 메모리에 올라간 가상 노드 수</p>
+          </article>
+          <article class="meta-card" title="브라우저 API가 감지한 물리적 렌더링 갱신 횟수입니다.">
+            <span>물리 렌더 변화 (Observer)</span>
+            <strong id="observerMeta">0 번의 변경 감지</strong>
+            <p>앱 외적으로 감지된 실제 화면 쓰기 비용</p>
+          </article>
+        </div>
+
+        <div class="status-box" title="동작 중인 시스템의 현재 진행 메시지입니다.">
+          <div>
+            <p class="section-label" title="시스템 상태 (System Status)">현재 시스템 상태</p>
+            <strong id="statusTitle" title="현재 파악된 메인 메시지입니다.">초기화 진행 중</strong>
+          </div>
+          <p id="statusMessage" title="세부 상태 안내입니다.">
+            브라우저 DOM을 읽고 구조화하여 초기 Virtual DOM 스냅샷을 생성하고 있습니다.
+          </p>
+        </div>
+
+        <div class="preset-strip" title="공부용으로 준비된 여러가지 HTML 변화 예제들입니다. 클릭하면 즉시 입력됩니다.">
+          <p class="section-label" title="클릭하여 예제 코드를 불러옵니다.">빠른 테스트 프리셋 모음</p>
+          <div class="preset-strip__buttons">
+            <button class="chip-button" data-preset="base" type="button" title="최초 기본 상태의 HTML입니다.">기본 구조</button>
+            <button class="chip-button" data-preset="textAttr" type="button" title="원래 구조에서 글자와 클래스 속성을 바꾸는 예제입니다.">텍스트/속성 변경</button>
+            <button class="chip-button" data-preset="addNode" type="button" title="새로운 버튼 요소를 추가하는 예제입니다.">새 노드 추가</button>
+            <button class="chip-button" data-preset="removeNode" type="button" title="기존에 있던 일부 요소를 삭제하는 예제입니다.">기존 노드 삭제</button>
+            <button class="chip-button" data-preset="replaceTag" type="button" title="태그 이름을 span에서 div로 아예 교체해버리는 예제입니다.">태그 자체 교체</button>
+            <button class="chip-button" data-preset="mixed" type="button" title="여러 변경 사항이 한 번에 섞여 있는 극한 예제입니다.">복합 무작위 변경</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace" title="화면에 표시될 DOM을 작업하는 워크스페이스 공간입니다.">
+        <article class="panel" title="현재 시각적으로 브라우저에 렌더링된 최종 화면입니다.">
+          <div class="panel__head">
+            <div>
+              <p class="section-label" title="최종 산출물입니다.">실제 DOM 트리 (Actual DOM)</p>
+              <h2 title="사용자가 이 앱에서 보는 진짜 컴포넌트들입니다. (이곳에 패치가 가해집니다)">렌더링된 컴포넌트 영역</h2>
+            </div>
+            <span class="panel__badge" title="VDOM 엔진이 이 영역만 수정(패치)합니다.">패치 대상 (Target)</span>
+          </div>
+          <div id="realDomRoot" class="canvas" aria-label="최종 화면 표시 영역" title="순수 자바스크립트로 그려지고 있는 객체들입니다."></div>
+        </article>
+
+        <article class="panel" title="다음 변경점을 만들어낼 소스 편집기입니다.">
+          <div class="panel__head">
+            <div>
+              <p class="section-label" title="시뮬레이션 용 예제 입력기입니다.">실험실 에디터 (Test DOM)</p>
+              <h2 title="직접 HTML 코드를 짜거나 수정하여, 다음 상태를 구성해봅니다.">HTML 코드 입력 에디터</h2>
+            </div>
+            <span class="panel__badge" title="HTML 코드를 자유롭게 조작 가능합니다.">자유 수정 가능 (Editable)</span>
+          </div>
+          <label class="editor-label" for="sourceEditor" title="문자 기준으로 입력합니다.">가상 DOM 구조 코드 작성</label>
+          <textarea
+            id="sourceEditor"
+            class="source-editor"
+            spellcheck="false"
+            aria-label="테스트 HTML 코드 편집기"
+            title="HTML 코드를 타이핑하면 아래 미리보기에 실시간으로 트리 구조가 나타납니다."
+          ></textarea>
+          <div class="preview-head" title="입력한 코드가 어떻게 생겼는지 보여줍니다. (아직 렌더링 영역에는 미반영됨)">
+            <span>위 코드의 컴포넌트 미리보기 (Preview)</span>
+            <strong id="testMeta" title="현재 에디터 내부의 노드 개수 등 상태 표시">대기중 (waiting)</strong>
+          </div>
+          <div id="testDomRoot" class="canvas canvas--test" aria-label="미리보기 영역" title="작성한 코드의 시각적 컴포넌트 모습입니다. 패치를 눌러야 우측 화면으로 전송됩니다."></div>
+        </article>
+      </section>
+
+      <section class="insight-grid" title="연산 알고리즘의 세부 작동 내역을 관찰하는 모니터링 탭들입니다.">
+        <article class="panel panel--compact" title="두 트리를 비교한 결과 목록(Diff 결과)입니다.">
+          <div class="panel__head">
+            <div>
+              <p class="section-label" title="비교 결과 (Diff Result)">연산 비교 결과 (Diff Result)</p>
+              <h2 title="바뀐 요소를 찾아서 어떻게 수정할지 명령어로 나열한 로그서입니다.">생성된 패치 로그 (Patch Log)</h2>
+            </div>
+          </div>
+          <ol id="patchLog" class="log-list" title="추가, 삭제, 변경 등의 명령어가 쌓이는 공간입니다."></ol>
+        </article>
+
+        <article class="panel panel--compact" title="과거의 모든 상태 캡처본(Snapshot)이 저장되는 리스트입니다.">
+          <div class="panel__head">
+            <div>
+              <p class="section-label" title="상태 변경 이력 (State History)">상태 변천 기록 (State History)</p>
+              <h2 title="이곳을 클릭해 언제든지 과거 상태로 타임머신 이동할 수 있습니다.">과거 스냅샷 탐색기 (History)</h2>
+            </div>
+          </div>
+          <div id="historyPanel" class="history-list" title="시간순으로 생성된 상태 체크포인트들이며 클릭 시 복구됩니다."></div>
+        </article>
+
+        <article class="panel panel--compact" title="메모리에 실존하는 가상 객체 모델을 Tree 모양 JSON으로 보여줍니다.">
+          <div class="panel__head">
+            <div>
+              <p class="section-label" title="메모리상의 가상 돔 (Virtual DOM)">메모리 구조 (Virtual DOM)</p>
+              <h2 title="현재 활성화된 추상화 노드들의 트리 형태입니다.">현재 메모리 스냅샷(JSON) 보기</h2>
+            </div>
+          </div>
+          <pre id="treePanel" class="tree-view" title="자바스크립트 VNode 객체의 실제 덤프 텍스트입니다."></pre>
+        </article>
+
+        <article class="panel panel--compact" title="브라우저 자체가 제공하는 화면 변화 감지(API) 내용입니다.">
+          <div class="panel__head">
+            <div>
+              <p class="section-label" title="브라우저 API (Browser API)">브라우저 감지 (Browser API)</p>
+              <h2 title="브라우저가 실제로 비용을 얼마나 소모했는지 알려주는 콜백 로그입니다.">물리 변화 감지 로그 (Observer)</h2>
+            </div>
+          </div>
+          <ul id="observerLog" class="observer-list" title="실제 DOM 연산이 얼마나 일어났는지 추적합니다. 짧을수록 좋습니다."></ul>
+        </article>
+      </section>
+
+      <section class="notes-grid" title="알고리즘을 이해하기 위한 하단 이론 교육 섹션입니다.">
+        <article class="note-card" title="관련 지식 해설 1번 카드">
+          <span>이론 1. 브라우저 탐색은 왜 느린가?</span>
+          <strong>리플로우(Reflow)와 리페인트(Repaint)의 비용</strong>
+          <p>
+            DOM 트리에서 요소 추가, 삭제, 크기 및 속성 변경이 여러 번 일어날수록 브라우저는 전체 화면의 크기나 배치를 모두 재계산하고 화면을 다시 색칠하는 과정을 반복합니다.
+            가상 DOM(Virtual DOM)은 이 무거운 비용을 줄이기 위해, 자바스크립트 메모리 상에서 미리 변경점을 단번에 계산해냅니다.
+          </p>
+        </article>
+        <article class="note-card" title="관련 지식 해설 2번 카드">
+          <span>이론 2. 가상 구조(Virtual DOM)란?</span>
+          <strong>태그, 속성, 자식 노드를 가진 메모리 객체 트리</strong>
+          <p>
+            이 교육용 프로젝트는 실제 물리적인 DOM을 순회(Traverse)하여 가벼운 추상 객체(Object) 모양으로 바꾸고 메모리에 담아 둡니다.
+            그 후 오로지 이 가벼운 객체 트리만을 활용하여 빠르고 안전하게 화면의 새로운 모습을 추론합니다.
+          </p>
+        </article>
+        <article class="note-card" title="관련 지식 해설 3번 카드">
+          <span>이론 3. 핵심 비교(Diff) 분기점 판단</span>
+          <strong>추가, 삭제, 교체, 속성 변경, 텍스트 업데이트 사항 포착</strong>
+          <p>
+            이전의 가상 트리 스냅샷과 새로 만들어낸 가상 트리를 뿌리부터 비교 분석해 위 5가지 케이스에 속하는 변경점만 골라냅니다. 
+            그 후 산출된 비교 결과(Patch Log)에 따라, 바뀐 부분과 연결된 물리적 요소 하나만을 족집게처럼 섬세하게 찾아서 업데이트합니다.
+          </p>
+        </article>
+        <article class="note-card" title="관련 지식 해설 4번 카드">
+          <span>이론 4. 상용 프레임워크(React)와의 연관성</span>
+          <strong>재조정 (Reconciliation) 이후 커밋 단계 (Commit) 모델</strong>
+          <p>
+            현존하는 대표 프레임워크 React 또한 이 앱과 똑같이 상태 변경 후 자신만의 새로운 UI 트리를 우선 구성하고, 이전 트리와 비교하는 '재조정' 과정을 거칩니다.
+            이후 바뀐 부분들만을 모아 실제 브라우저 DOM에 '커밋(Commit)'하여 성능을 발휘합니다. 본 시뮬레이터는 이러한 과정을 교육용으로 축소 구현한 것입니다.
+          </p>
+        </article>
+      </section>
+    </div>
+
+    <script src="../core/vdom.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

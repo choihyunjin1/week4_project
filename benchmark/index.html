@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>React-style Virtual DOM Engine Console</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell" title="성능 벤치마크 엔진 대시보드입니다.">
+      <header class="hero" title="가상 DOM과 직접 DOM 조작 방식의 성능을 테스트하는 영역입니다.">
+        <div class="hero__copy">
+          <p class="eyebrow" title="성능을 극한으로 테스트하는 콘솔입니다.">엔진 테스트 콘솔</p>
+          <h1 title="리액트 스타일의 가상 DOM과 일반 DOM 직접 조작 간의 비교를 수행합니다.">리액트 스타일 가상 DOM vs 직접 DOM 조작</h1>
+          <p class="hero__description" title="이 앱의 주요 기능과 목적에 대한 설명입니다.">
+            같은 상태 변경 스트림(mutation stream)을 두 런타임에 지속적으로 보내고, 지연 시간과 DOM 갱신 비용을 실시간으로 비교합니다.
+            이 페이지는 성능 비교 시연에만 집중하며, 패치 알고리즘 실험과 스튜디오 사례는 별도 데모로 분리했습니다.
+          </p>
+        </div>
+        <div class="hero__metrics">
+          <article class="metric-card" title="가상 DOM 런타임에서 가장 최근 상태 갱신에 소요된 지연 시간(밀리초)입니다.">
+            <span>가상 DOM 현재 지연</span>
+            <strong id="vdomCurrentLatency">0.00ms</strong>
+          </article>
+          <article class="metric-card" title="DOM 직접 조작 방식에서 가장 최근 상태 갱신에 소요된 지연 시간(밀리초)입니다.">
+            <span>직접 DOM 현재 지연</span>
+            <strong id="redrawCurrentLatency">0.00ms</strong>
+          </article>
+          <article class="metric-card" title="두 런타임 간의 지연 시간 차이입니다.">
+            <span>현재 성능 격차</span>
+            <strong id="latencyGapValue">0.00ms</strong>
+          </article>
+          <article class="metric-card" title="현재 실행 중인 벤치마크 스트림의 동작 상태입니다.">
+            <span>스트림 상태</span>
+            <strong id="benchmarkStatus">대기중</strong>
+          </article>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="card card--controls" title="벤치마크 실행의 부하량과 옵션을 조절하는 컨트롤 패널입니다.">
+          <div class="card__header">
+            <div>
+              <p class="section-label" title="시스템 스트레스를 조작합니다.">스트레스 제어 (Stress Controls)</p>
+              <h2 title="성능 테스트를 위한 환경 설정을 조작합니다.">과부하 스트림 제어</h2>
+            </div>
+            <div class="toolbar" title="과부하 스트림 제어 도구 모음입니다.">
+              <button id="benchmarkStartButton" class="button button--primary" type="button" title="지속적으로 무작위 상태 변경(Mutation)을 주입하는 테스트를 시작합니다.">연속 시작</button>
+              <button id="benchmarkStopButton" class="button" type="button" title="진행 중인 벤치마크 테스트를 멈춥니다.">중지</button>
+              <button id="benchmarkBurstButton" class="button" type="button" title="단기간에 30회의 상태 변경을 즉시 실행하여 순간 부하 성능을 측정합니다.">버스트 30회</button>
+              <button id="benchmarkResetButton" class="button button--ghost" type="button" title="그래프와 벤치마크 기록을 초기화합니다.">벤치마크 초기화</button>
+            </div>
+          </div>
+
+          <div class="preset-toolbar">
+            <div class="preset-toolbar__actions" title="사전 정의된 부하 프로필을 빠르게 적용합니다.">
+              <button id="presetBalancedButton" class="button button--small" type="button" title="가상 DOM과 일반 조작이 비슷한 성능을 내도록 중간 수준의 부하를 설정합니다.">균형 프리셋</button>
+              <button id="presetFavorableButton" class="button button--small" type="button" title="시연용으로 가상 DOM의 장점이 확실히 보이도록 320개 노드, 1% 변경, 반복 selector walk 6회, 강한 layout read 압력을 설정합니다.">VDOM 유리 극대화</button>
+              <button id="presetUnfavorableButton" class="button button--small" type="button" title="시연용으로 직접 DOM 조작이 더 단순하게 유리해지도록 96개 노드, 매 tick 전체 재정렬, cached walk만 남긴 조건을 설정합니다.">직접 DOM 유리 극대화</button>
+            </div>
+            <div class="preset-toolbar__meta" title="현재 선택된 프리셋의 특성 설명입니다.">
+              <span id="presetLabelChip" class="chip chip--blue">균형 프리셋</span>
+              <span id="loadWarningChip" class="chip chip--green">부하 안전</span>
+              <span id="loadReasonChip" class="chip chip--slate">기본 스트림 설정입니다.</span>
+            </div>
+          </div>
+
+          <div class="controls-grid" title="벤치마크의 세부 인자들입니다.">
+            <label class="control" title="어떤 종류의 상태 변경을 일으킬지 선택합니다. (텍스트, 속성, 리스트 등)">
+              <span>갱신 모드 (Mutation Mode)</span>
+              <select id="mutationModeSelect" title="변경 유형을 혼합 방식, 텍스트, 속성, 리스트 재배열 중에서 고릅니다.">
+                <option value="mixed">혼합 무작위 (Mixed)</option>
+                <option value="text">텍스트 갱신 (Text Churn)</option>
+                <option value="attr">속성 갱신 (Attribute Pulse)</option>
+                <option value="list">리스트 재배열 (List Reorder)</option>
+              </select>
+            </label>
+
+            <label class="control" title="1초 동안 몇 번 화면을 갱신(Tick)할지 설정합니다.">
+              <span>초당 갱신 횟수 (Ticks / sec)</span>
+              <input id="frequencyRange" type="range" min="1" max="24" value="8" title="바를 움직여 초당 갱신 주기를 조절합니다." />
+              <strong id="frequencyValue">8</strong>
+            </label>
+
+            <label class="control" title="화면에 매번 그려질 돔 트리의 전체 노드 개수를 설정합니다.">
+              <span>총 렌더링 노드 수 (Node Load)</span>
+              <input id="itemCountRange" type="range" min="24" max="320" step="8" value="96" title="노드가 많아질수록 벤치마크 부하가 커집니다." />
+              <strong id="itemCountValue">96 개</strong>
+            </label>
+
+            <label class="control" title="매 갱신(Tick)마다 전체 트리 중 몇 %를 갱신할지 결정합니다.">
+              <span>변경 반영 비율 (Mutation Scope)</span>
+              <input id="mutationRatioRange" type="range" min="2" max="100" step="2" value="8" title="반영 비율이 적을수록 가상 DOM이, 많을수록 직접 조작이 유리해집니다." />
+              <strong id="mutationRatioValue">8% · 약 8 노드/틱</strong>
+            </label>
+
+            <article class="control control--status" title="스트림이 주입된 총 횟수입니다.">
+              <span>진행 틱 수 (Last Tick)</span>
+              <strong id="tickCounter">0</strong>
+              <p id="streamHint" title="벤치마크의 동일한 상태가 양측 애플리케이션으로 보내집니다.">연속 시작을 누르면 같은 상태 변화가 두 런타임에 동시에 주입됩니다.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="benchmark-grid">
+          <article class="card" title="가상 DOM을 통해 화면을 렌더링하는 컨테이너 영역입니다.">
+            <div class="card__header">
+              <div>
+                <p class="section-label" title="첫 번째 측정 대상 런타임입니다.">런타임 A (Runtime A)</p>
+                <h2 title="가상 DOM 기반으로 변화를 계산해서 패치합니다.">가상 DOM (React-style VDOM)</h2>
+              </div>
+              <span class="chip chip--blue" title="가상 DOM 모델 비교 후 부분 패치 방식을 사용합니다.">비교 후 패치 (diff + patch)</span>
+            </div>
+            <div class="runtime-meta">
+              <div class="runtime-meta__item" title="해당 런타임의 평균 처리 소요 시간입니다.">
+                <span>평균 (Avg)</span>
+                <strong id="vdomAvgLatency">0.00ms</strong>
+              </div>
+              <div class="runtime-meta__item" title="상위 95% 구간에서의 지연 시간(이상치 방지 지표)입니다.">
+                <span>상위 95% (P95)</span>
+                <strong id="vdomP95Latency">0.00ms</strong>
+              </div>
+              <div class="runtime-meta__item" title="지금까지 이루어진 상태 갱신 누적 횟수입니다.">
+                <span>누적 갱신 수 (Mutations)</span>
+                <strong id="vdomMutationTotal">0</strong>
+              </div>
+            </div>
+            <div id="benchmarkVdomRoot" class="runtime-surface" aria-label="React-style 가상 DOM 런타임 출력 영역" title="가상 DOM 런타임이 실제 컴포넌트를 그리는 렌더링 영역입니다."></div>
+          </article>
+
+          <article class="card" title="전체 컨테이너를 직접 탐색하고 다시 쓰는 브라우저 DOM 방식 영역입니다.">
+            <div class="card__header">
+              <div>
+                <p class="section-label" title="두 번째 측정 대상 런타임입니다.">런타임 B (Runtime B)</p>
+                <h2 title="가상 돔 없이 전체 DOM 트리를 순회하는 고전적 방식입니다.">직접 DOM 조작 (Imperative Walk)</h2>
+              </div>
+              <span class="chip chip--amber" title="변화를 체크하기 위해 무식하게 브라우저 DOM을 전체 조회하는 방식입니다.">전체 탐색 렌더링 (manual DOM walk)</span>
+            </div>
+            <div class="runtime-meta">
+              <div class="runtime-meta__item" title="해당 런타임의 평균 처리 소요 시간입니다.">
+                <span>평균 (Avg)</span>
+                <strong id="redrawAvgLatency">0.00ms</strong>
+              </div>
+              <div class="runtime-meta__item" title="상위 95% 구간에서의 지연 시간입니다.">
+                <span>상위 95% (P95)</span>
+                <strong id="redrawP95Latency">0.00ms</strong>
+              </div>
+              <div class="runtime-meta__item" title="결과적으로 처리한 누적 횟수입니다.">
+                <span>누적 갱신 수 (Mutations)</span>
+                <strong id="redrawMutationTotal">0</strong>
+              </div>
+            </div>
+            <div id="benchmarkDirectRoot" class="runtime-surface" aria-label="No VDOM Imperative Walk 런타임 출력 영역" title="순수 자바스크립트 DOM API로 트리를 렌더링하는 영역입니다."></div>
+          </article>
+        </section>
+
+        <section class="analysis-grid">
+          <article class="card card--wide" title="두 런타임의 지연 시간을 한 눈에 비교하는 라이브 그래프입니다.">
+            <div class="card__header">
+              <div>
+                <p class="section-label" title="시계열 기반 분석 그래프입니다.">실시간 성능 그래프 (Live Graph)</p>
+                <h2 title="초당 발생한 틱에 맞추어 양측의 반응 속도를 밀리초 단위로 표시합니다.">지연 시간 실시간 비교 차트</h2>
+              </div>
+              <div class="graph-meta">
+                <span id="graphScaleLabel" class="chip chip--slate" title="그래프의 Y축 최대 스케일입니다.">최대 10.00ms (max)</span>
+                <span id="patchAverageChip" class="chip chip--green" title="틱 당 실행되는 평균 연산 수치입니다.">평균 패치 연산 0회</span>
+              </div>
+            </div>
+            <canvas id="graphCanvas" class="graph-canvas" width="960" height="320" title="파란색은 가상 DOM 프레임워크, 주황색은 일반 DOM 방식의 성능입니다."></canvas>
+          </article>
+
+          <article class="card" title="현재 부하 상태와 결과를 AI 처럼 요약해주는 서머리 창입니다.">
+            <div class="card__header">
+              <div>
+                <p class="section-label" title="분석 결과와 요약입니다.">분석 요약 (Summary)</p>
+                <h2 title="벤치마크 진행 상황에 대한 자동화된 성능 팁을 제공합니다.">현재 벤치마크 자동 해석 결과</h2>
+              </div>
+            </div>
+            <div id="performancePanel" class="summary-panel" title="이 패널에 성능 우위 분석 텍스트가 표시됩니다."></div>
+          </article>
+        </section>
+
+        <section class="card" title="주입된 상태 변경 이벤트(Tick)들의 상세 로그입니다.">
+          <div class="card__header">
+            <div>
+              <p class="section-label" title="시간순 이벤트 시퀀스 기록입니다.">상태 스트림 (Tick Feed)</p>
+              <h2 title="각 프레임에서 어떤 컴포넌트 데이터가 바뀌었는지 로그를 생성합니다.">연속 스트림 이벤트 로그</h2>
+            </div>
+          </div>
+          <div id="benchmarkFeed" class="feed-panel" title="이 영역에 상태 데이터가 직렬화되어 지속적으로 기록됩니다."></div>
+        </section>
+
+        <section class="card" title="공통 엔진을 사용하는 다른 데모로 이동할 수 있습니다.">
+          <div class="card__header">
+            <div>
+              <p class="section-label" title="성능 비교 외의 기능 검증은 별도 데모로 분리했습니다.">연결 데모 (Related Demos)</p>
+              <h2 title="같은 공통 VDOM 엔진을 사용하는 다른 사례입니다.">성능 외 검증은 별도 사례로 분리</h2>
+            </div>
+          </div>
+          <div class="related-grid">
+            <article class="related-card">
+              <strong>패치 알고리즘 실험실</strong>
+              <p>실제 DOM -> VDOM 변환, Diff, Patch, Undo/Redo, 트리 시각화를 집중적으로 검증하는 페이지입니다.</p>
+              <a class="button button--small" href="../choiyeongbeen/index.html">패치 실험실 열기</a>
+            </article>
+            <article class="related-card">
+              <strong>Patchletter Studio</strong>
+              <p>공통 엔진이 뉴스레터 에디터 사례에 실제로 어떻게 붙는지 보여주는 통합 사례입니다.</p>
+              <a class="button button--small" href="../jungchanbin/index.html">스튜디오 사례 열기</a>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="../core/vdom.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

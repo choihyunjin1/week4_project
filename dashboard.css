@@ -1,0 +1,287 @@
+:root {
+  --bg-deep: #03050a;
+  --panel-bg: rgba(9, 14, 28, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-glow: rgba(255, 255, 255, 0.12);
+  --ink: #f8fafc;
+  --ink-soft: #94a3b8;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.4);
+  --green: #34d399;
+  
+  --radius-xl: 32px;
+  --radius-lg: 20px;
+  --font-sans: "Outfit", "Space Grotesk", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background-color: var(--bg-deep);
+  overflow: hidden; /* App shell */
+}
+
+/* Aurora Background */
+.aurora-bg {
+  position: fixed;
+  inset: -50%;
+  pointer-events: none;
+  z-index: -1;
+  background: 
+    radial-gradient(circle at 30% 70%, rgba(99, 102, 241, 0.12), transparent 45%),
+    radial-gradient(circle at 70% 30%, rgba(56, 189, 248, 0.12), transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(244, 63, 94, 0.08), transparent 55%);
+  animation: auroraSpin 30s linear infinite;
+}
+
+@keyframes auroraSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Layout */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  padding: 16px;
+  gap: 16px;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 272px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 32px 64px rgba(0,0,0,0.5), inset 0 1px 1px var(--glass-glow);
+  padding: 24px;
+}
+
+.sidebar__brand {
+  margin-bottom: 28px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.logo svg { color: var(--accent); }
+.highlight { color: var(--accent); }
+
+.subtitle {
+  margin: 6px 0 0 38px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sidebar__nav {
+  display: grid;
+  gap: 10px;
+  flex-grow: 1;
+}
+
+.nav-btn {
+  display: grid;
+  grid-template-areas: "icon text" "icon desc";
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0 14px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-btn .icon {
+  grid-area: icon;
+  font-size: 1.45rem;
+  background: rgba(255,255,255,0.05);
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.nav-btn .text {
+  grid-area: text;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.nav-btn .desc {
+  grid-area: desc;
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+.nav-btn:hover {
+  background: rgba(255,255,255,0.03);
+  transform: translateX(4px);
+}
+
+.nav-btn.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.1));
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.2), inset 0 1px 1px var(--glass-glow);
+}
+
+.nav-btn.active .icon {
+  background: rgba(56, 189, 248, 0.2);
+  transform: scale(1.1);
+}
+
+.nav-btn.active .text {
+  color: #fff;
+}
+
+.sidebar__footer {
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.dot {
+  width: 8px; height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--green);
+}
+
+.pulse { animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* Workspace */
+.workspace {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 32px 64px rgba(0,0,0,0.5), inset 0 1px 1px var(--glass-glow);
+  overflow: hidden;
+  position: relative;
+}
+
+.workspace__header {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(2, 4, 10, 0.2);
+}
+
+.workspace__header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: -0.02em;
+}
+
+.view-subtitle {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.workspace__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.action-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--ink);
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.iframe-container {
+  flex-grow: 1;
+  position: relative;
+  background: #02040a; /* solid dark background for the iframe sandbox */
+}
+
+#main-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+#main-frame.ready {
+  opacity: 1;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 4, 10, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.loading-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
