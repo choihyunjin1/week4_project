@@ -1,208 +1,109 @@
 # Week4 Team3 Project
 
-Vanilla JavaScript로 `team3-react` Virtual DOM 라이브러리를 구현하고, 그 라이브러리가 실제로 어떻게 동작하는지 검증하는 `Demo Lab`과 `Benchmark`를 만든 프로젝트입니다.
+HTML, CSS, Javascript(Vanilla)로 **Virtual DOM 라이브러리**를 직접 구현하고, 이를 검증할 수 있는 Benchmark 페이지를 만든 프로젝트를 진행하였습니다.
 
-이 저장소는 개념 요약보다 `우리가 실제로 만든 것`에 초점을 둡니다.
+이 프로젝트의 목적은 단순히 개념을 정리하는 것이 아니라, 브라우저의 실제 DOM이 어떻게 동작하는지 이해하고, 그 위에서 Virtual DOM과 Diff 알고리즘이 왜 필요한지 직접 구현과 실험을 통해 확인하는 데 있습니다.
 
-- 공용 라이브러리: `packages/team3-react/src/index.js`
-- 검증 페이지: `demo-lab/`
-- 성능 비교 페이지: `benchmark/`
-- 대시보드 진입점: `index.html`
-- 상세 사용 문서: [TEAM3_REACT_MANUAL.md](/Users/choeyeongbin/week4_project/TEAM3_REACT_MANUAL.md)
+## 1. 프로젝트가 다루는 핵심 주제
 
-## 우리가 실제로 구현한 결과물
 
-### 1. `team3-react` 라이브러리
+- `브라우저는 DOM을 어떻게 다루는가`
+- `실제 DOM은 왜 비용이 큰가`
+- `Virtual DOM은 어떤 구조를 가지는가`
+- `왜 Virtual DOM이 필요한가`
+- `Diff 알고리즘의 동작 방식이 어떻게 되는가`
 
-공용 엔진은 [packages/team3-react/src/index.js](/Users/choeyeongbin/week4_project/packages/team3-react/src/index.js) 에 있습니다.
+## 2. 역할 분담
+1. Virtual DOM / Diff 알고리즘이 적용된 웹페이지를 각자 구현한 후 하나로 통합했습니다.
 
-현재 구현 범위:
+2. Benchmark 성능 검증은 각각 구현한 작업물들을 합친 후 적용하였습니다. 
+   Virtual DOM 방식과 Real DOM 조작 방식을 동시에 주입하여 두 방식의 처리 시간과 DOM 갱신 비용을 비교할 수 있도록 구현했습니다.
+   
+## 3. 실제 DOM이 느린 이유
 
-- `createElement(type, props, ...children)`
-- `Component`
-- `setState(partialState)`
-- `forceUpdate()`
-- `render(element, container)`
-- `Fragment`
-- DOM event props 반영
-- `style`, `className`, `value`, `checked`, `selected`, `disabled` 처리
-- key 기반 자식 비교
-- class component lifecycle 일부 지원
+실제 DOM은 브라우저 렌더링 엔진과 연결된 구조입니다.
 
-렌더링 외에도 아래 VDOM 유틸을 제공합니다.
+즉 DOM을 직접 수정하면 브라우저는 화면을 다시 계산해야 할 수 있고, 이 과정에서 비용이 커집니다.
 
-- `domToVNodeTree()`
-- `normalizeVNodeTree()`
-- `renderVNodeTree()`
-- `serializeVNodeTreeHTML()`
-- `diffVNodeTrees()`
-- `applyPatchesToDom()`
-- `countVNodeNodes()`
-- `getVNodeMaxDepth()`
-- `traverseVNodeDFS()`
-- `traverseVNodeBFS()`
-- `cloneVNodeTree()`
+### Reflow
+크기나 위치 변화로 레이아웃을 다시 계산하는 과정이라 비용이 큽니다.
 
-즉 단순한 UI 시연 코드가 아니라, 실제 렌더러와 VDOM 검증 유틸을 함께 가진 라이브러리 구조입니다.
+### Repaint
+위치 변화 없이 색상, 배경 같은 시각 정보만 다시 그리는 과정입니다.
 
-### 2. Demo Lab
+따라서 이러한 과정들을 자주 직접 수정하면 브라우저 부담이 커져 성능 저하가 발생할 수 있습니다.
 
-Demo Lab은 [apps/showcase/tabs/demo.js](/Users/choeyeongbin/week4_project/apps/showcase/tabs/demo.js) 와 [demo-lab/index.html](/Users/choeyeongbin/week4_project/demo-lab/index.html) 에 구현되어 있습니다.
+## 4. Virtual DOM
 
-이 페이지에서 실제로 검증하는 기능:
+### Virtual DOM이란
 
-- `실제 영역`과 `테스트 영역`을 분리
-- 페이지 로드 시 실제 DOM을 VDOM으로 변환
-- 변환된 VDOM으로 테스트 영역 렌더링
-- HTML 코드 편집기로 테스트 영역 구조 수정
-- `Patch` 버튼 클릭 시 diff 계산
-- patch 결과만 실제 영역에 반영
-- 상태 history 저장
-- `뒤로가기 / 앞으로가기`로 snapshot 복원
-- 상세 트리 구조 하이라이트
-- `Old VDOM / New VDOM` 비교 뷰
-- 변경 노드, 경로 subtree, focus node 강조
-- `MutationObserver`로 실제 DOM 변화 로그 수집
+Virtual DOM은 실제 DOM을 메모리 위에서 표현한 **자바스크립트 객체 트리**입니다.
 
-즉 Demo Lab은 “이론 설명 페이지”가 아니라, `VDOM 생성 -> Diff -> Patch -> History -> 실제 DOM 반영`을 눈으로 확인하는 검증 도구입니다.
+### 이 프로젝트의 VDOM 구조
 
-### 3. Benchmark
+이 프로젝트에서 Virtual DOM 노드는 다음과 같은 정보를 가집니다.
 
-Benchmark는 [benchmark/index.html](/Users/choeyeongbin/week4_project/benchmark/index.html) 와 [benchmark/app.js](/Users/choeyeongbin/week4_project/benchmark/app.js) 에 구현되어 있습니다.
+- `type`: `element`, `text`
+- `tag`: 예: `div`, `article`, `button`
+- `attrs`: 속성 정보
+- `children`: 자식 노드 배열
+- `text`: 텍스트 노드 값
+- `key`: 형제 노드 비교용 식별자
+- `path`, `depth`: 트리 시각화와 patch 추적용 메타데이터
 
-여기서는:
+즉 Virtual DOM은 단순히 HTML 문자열이 아니라, 비교와 추적이 가능한 구조화된 객체 트리입니다.
 
-- 공용 VDOM 엔진 기반 렌더링
-- 직접 DOM 조작 baseline
-- 노드 수 / 변경량 / reorder 상황
-- 실제 DOM 갱신 비용 차이
+## 5. Virtual DOM이 필요한 이유
 
-를 비교합니다.
+### 1. 실제 DOM을 직접 계속 수정하지 않기 위해
 
-즉 Benchmark는 “Virtual DOM이 왜 필요한가”를 말이 아니라 실험으로 보여주는 페이지입니다.
+### 2. 이전 상태와 새 상태를 비교하기 쉽게 만들기 위해
 
-## 현재 구조
+### 3. 최소 변경 렌더링을 하기 위해
 
-![핵심 구조](/Users/choeyeongbin/week4_project/assets/readme/core-structure.png)
+전체 화면을 다시 그리는 대신, 바뀐 부분만 찾아 실제 DOM에 반영할 수 있습니다.
+즉 Virtual DOM은 **실제 DOM을 대체하는 것이 아니라, 실제 DOM을 효율적으로 업데이트하기 위한 중간 비교 구조**입니다.
 
-현재 코드 기준 핵심 흐름은 아래와 같습니다.
+## 5. Diff 알고리즘
 
-1. 입력 HTML 또는 실제 DOM을 읽는다.
-2. VDOM 생성 계층에서 객체 트리를 만든다.
-3. 정규화 계층에서 `path`, `depth`, `key`를 정리한다.
-4. 비교 계층에서 diff를 계산한다.
-5. 적용 계층에서 patch를 실제 DOM에 반영한다.
-6. Demo Lab과 Benchmark에서 그 결과를 시각화한다.
+Diff 알고리즘은 **이전 Virtual DOM**과 **새로운 Virtual DOM**을 비교하여 변경된 부분만 찾아내는 알고리즘입니다.
 
-## 함수 그룹 지도
+### Diff 알고리즘을 사용하는 이유
 
-![함수 그룹 지도](/Users/choeyeongbin/week4_project/assets/readme/function-map.png)
+- 실제 DOM 전체를 다시 그리는 비용을 줄이기 위해
+- 변경되지 않은 노드는 재사용하기 위해
+- 새로운 노드, 삭제된 노드, 순서 변경된 노드를 정확히 식별하기 위해
+- 최소 변경 렌더링을 수행하기 위해
 
-실제 구현을 함수 그룹으로 나누면 다음과 같습니다.
+## 6. Diff 알고리즘의 동작 방식
 
-### VDOM 생성
+이 프로젝트의 Diff 알고리즘은 두 VDOM 트리를 비교하여 최소 변경 목록을 찾습니다.
 
-- `createRootContainer`
-- `createTextVNode`
-- `createElementVNode`
-- `domNodeToVNode`
-- `domToVNode`
-- `sourceToVNode`
+기본 흐름은 다음과 같습니다.
 
-### 정규화
+1. 이전 노드와 새 노드를 비교한다
+2. 노드가 없으면 생성 또는 삭제로 판단한다
+3. 타입이나 태그가 다르면 교체로 판단한다
+4. 텍스트 노드라면 문자열만 비교한다
+5. 같은 엘리먼트라면 속성을 비교한다
+6. 자식 배열을 비교하여 추가, 삭제, 재정렬 여부를 계산한다
 
-- `normalizeVNodePath`
 
-### 렌더 / 탐색
+## 7. key를 사용하는 이유
 
-- `createDOMFromVNode`
-- `renderVNodeToRoot`
-- `findVNodeByPath`
-- `traverseDFS`
-- `traverseBFS`
+리스트나 형제 노드를 비교할 때 `key`가 없으면 순서가 바뀐 경우에도 같은 노드를 안정적으로 식별하기 어렵습니다.
 
-### 비교
+즉 `key`는 단순한 속성이 아니라, **리스트 diff 정확도와 실제 DOM 변경량을 줄이는 핵심 장치**입니다.
 
-- `diffAttrs`
-- `createChildKeyMap`
-- `diffChildren`
-- `diff`
-- `diffRoot`
 
-### 적용
+## 8. Benchmark에서 검증하는 내용
 
-- `getDomNodeByPath`
-- `applyCreate`
-- `applyRemove`
-- `applyReplace`
-- `applyText`
-- `applyAttrSet`
-- `applyAttrRemove`
-- `applyReorderPatch`
-- `applyPatches`
-- `patchRoot`
+Benchmark는 공용 라이브러리를 기준으로 VDOM 방식과 직접 DOM 조작 방식을 비교하는 성능 실험 페이지입니다.
 
-## Patch 타입
+여기서 확인하는 포인트는 다음과 같습니다.
 
-현재 라이브러리가 지원하는 patch 타입:
+- 변경량이 적을 때와 많아질 때 Virtual DOM과 Real DOM의 지연시간이 어떻게 나타나는지
 
-- `CREATE`
-- `REMOVE`
-- `REPLACE`
-- `TEXT`
-- `ATTR_SET`
-- `ATTR_REMOVE`
-- `REORDER_CHILDREN`
+즉 Benchmark는 **"Virtual DOM이 왜 필요한가"를 개념이 아니라 실험 결과로 보여주는 도구**입니다.
 
-이 patch 타입은 [packages/team3-react/src/index.js](/Users/choeyeongbin/week4_project/packages/team3-react/src/index.js) 의 `VNODE_PATCH_TYPES`에 정의되어 있고, Demo Lab의 patch feed에서도 그대로 사용합니다.
-
-## key 기반 비교 방식
-
-우리 구현은 형제 노드를 비교할 때 `key`를 사용합니다.
-
-우선순위:
-
-1. `data-key`
-2. `key`
-3. `id`
-4. fallback index 기반 key
-
-이 방식으로:
-
-- 같은 노드를 안정적으로 추적하고
-- reorder를 감지하고
-- `REORDER_CHILDREN` patch를 생성합니다.
-
-현재 commit 단계는 안정성을 우선해서 reorder subtree를 재구성하는 방향으로 처리합니다.  
-즉 diff는 key 기반 최소 변경 탐지를 하고, 실제 DOM 적용은 충돌 없이 재현 가능한 쪽으로 맞췄습니다.
-
-## Demo Lab에서 눈으로 확인할 수 있는 것
-
-현재 `DEVELOPE` 브랜치 기준 Demo Lab에서 바로 시연 가능한 포인트는 아래와 같습니다.
-
-- HTML 편집기 수정 시 `draftTree` 갱신
-- 테스트 영역 인터랙션 시 `draftTree` 실시간 갱신
-- `actualTree`와 `draftTree` diff 계산
-- 변경된 노드 path 추적
-- 상세 트리에서 변경 노드 하이라이트
-- `Old VDOM / New VDOM`에서 변경 branch만 강조
-- 가장 위에 있는 변경 노드로 자동 스크롤
-- Patch 후 실제 영역 DOM 반영
-- Undo / Redo snapshot 복원
-
-즉 “우리 라이브러리가 실제로 어떤 상태를 가지고 있고, 어떻게 반영되는지”를 시각적으로 설명할 수 있는 상태입니다.
-
-## 주요 파일
-
-- 공용 라이브러리: [packages/team3-react/src/index.js](/Users/choeyeongbin/week4_project/packages/team3-react/src/index.js)
-- Demo Lab 로직: [apps/showcase/tabs/demo.js](/Users/choeyeongbin/week4_project/apps/showcase/tabs/demo.js)
-- Demo Lab 스타일: [apps/showcase/styles.css](/Users/choeyeongbin/week4_project/apps/showcase/styles.css)
-- Demo Lab 엔트리: [demo-lab/index.html](/Users/choeyeongbin/week4_project/demo-lab/index.html)
-- Benchmark: [benchmark/index.html](/Users/choeyeongbin/week4_project/benchmark/index.html)
-- Benchmark 로직: [benchmark/app.js](/Users/choeyeongbin/week4_project/benchmark/app.js)
-- 대시보드: [index.html](/Users/choeyeongbin/week4_project/index.html)
-- 라이브러리 설명서: [TEAM3_REACT_MANUAL.md](/Users/choeyeongbin/week4_project/TEAM3_REACT_MANUAL.md)
-
-## 한 줄 설명
-
-`team3-react`는 Vanilla JavaScript로 만든 pre-Fiber React 스타일 Virtual DOM 라이브러리이며, 이 저장소는 그 라이브러리의 렌더링, diff, patch, history, 시각화, 성능 비교까지 실제로 검증하는 프로젝트입니다.
+## 9. 회고
