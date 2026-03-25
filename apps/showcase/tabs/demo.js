@@ -271,6 +271,47 @@ function patchFeedMarkup(entries) {
     .join("");
 }
 
+function getPatchHighlightPaths(patches) {
+  const paths = new Set();
+
+  patches.forEach((patch) => {
+    if (patch.type === VNODE_PATCH_TYPES.REMOVE) {
+      paths.add(patch.parentPath || "0");
+      return;
+    }
+
+    paths.add(patch.path);
+  });
+
+  return paths;
+}
+
+function renderVNodeTreeMarkup(node, highlightedPaths) {
+  if (!node) {
+    return "";
+  }
+
+  const label =
+    node.type === "text"
+      ? `#text "${escapeHTML((node.text || "").trim() || " ")}"`
+      : `&lt;${escapeHTML(node.tag)}&gt;`;
+  const badge = node.type === "text" ? "text" : "element";
+  const childrenMarkup = (node.children || [])
+    .map((child) => renderVNodeTreeMarkup(child, highlightedPaths))
+    .join("");
+
+  return `
+    <li class="vdom-tree__node ${highlightedPaths.has(node.path) ? "is-changed" : ""}">
+      <div class="vdom-tree__row">
+        <span class="vdom-tree__badge">${badge}</span>
+        <code class="vdom-tree__path">${escapeHTML(node.path)}</code>
+        <strong class="vdom-tree__label">${label}</strong>
+      </div>
+      ${childrenMarkup ? `<ul class="vdom-tree__children">${childrenMarkup}</ul>` : ""}
+    </li>
+  `;
+}
+
 function findVNode(node, predicate) {
   if (!node) {
     return null;
@@ -636,17 +677,6 @@ export function mountDemoTab(container) {
           <div class="lab-inline-note">
             textarea를 수정하면 테스트 영역 미리보기가 즉시 갱신됩니다. Patch를 눌러야 실제 영역에만 변경분이 commit 됩니다.
           </div>
-          <div class="editor-patch-panel">
-            <div class="lab-card__head lab-card__head--compact">
-              <div>
-                <p class="eyebrow">Patch Feed</p>
-                <h3 class="card-title">최소 변경 결과</h3>
-              </div>
-              <span id="patchCount" class="runtime-badge">0 patches</span>
-            </div>
-            <div id="patchSummary" class="case-grid"></div>
-            <div id="patchDetails" class="lab-feed"></div>
-          </div>
         </article>
 
         <article class="lab-card lab-card--workspace">
@@ -675,6 +705,37 @@ export function mountDemoTab(container) {
           </div>
         </article>
 
+        <article class="lab-card lab-card--tree">
+          <div class="lab-card__head">
+            <div>
+              <p class="eyebrow">Virtual DOM</p>
+              <h3 class="card-title">트리 구조</h3>
+            </div>
+            <span id="treeMetrics" class="runtime-badge">0 nodes</span>
+          </div>
+          <div class="metrics-grid metrics-grid--lab">
+            <div class="metric-box"><span>Nodes</span><strong id="metricNodes">0</strong></div>
+            <div class="metric-box"><span>Depth</span><strong id="metricDepth">0</strong></div>
+            <div class="metric-box"><span>History</span><strong id="metricHistory">1</strong></div>
+          </div>
+          <div class="traversal-card">
+            <strong>Current Draft Tree</strong>
+            <ul id="vdomTree" class="vdom-tree"></ul>
+          </div>
+        </article>
+
+        <article class="lab-card lab-card--patchfeed">
+          <div class="lab-card__head">
+            <div>
+              <p class="eyebrow">Patch Feed</p>
+              <h3 class="card-title">최소 변경 결과</h3>
+            </div>
+            <span id="patchCount" class="runtime-badge">0 patches</span>
+          </div>
+          <div id="patchSummary" class="case-grid"></div>
+          <div id="patchDetails" class="lab-feed"></div>
+        </article>
+
         <article class="lab-card">
           <div class="lab-card__head">
             <div>
@@ -684,31 +745,6 @@ export function mountDemoTab(container) {
             <span id="historyBadge" class="runtime-badge">step 1 / 1</span>
           </div>
           <div id="historyRail" class="history-rail"></div>
-        </article>
-
-        <article class="lab-card">
-          <div class="lab-card__head">
-            <div>
-              <p class="eyebrow">Virtual DOM</p>
-              <h3 class="card-title">트리 통계와 순회</h3>
-            </div>
-            <span id="treeMetrics" class="runtime-badge">0 nodes</span>
-          </div>
-          <div class="metrics-grid metrics-grid--lab">
-            <div class="metric-box"><span>Nodes</span><strong id="metricNodes">0</strong></div>
-            <div class="metric-box"><span>Depth</span><strong id="metricDepth">0</strong></div>
-            <div class="metric-box"><span>History</span><strong id="metricHistory">1</strong></div>
-          </div>
-          <div class="traversal-grid">
-            <div class="traversal-card">
-              <strong>DFS</strong>
-              <div id="dfsList" class="path-list"></div>
-            </div>
-            <div class="traversal-card">
-              <strong>BFS</strong>
-              <div id="bfsList" class="path-list"></div>
-            </div>
-          </div>
         </article>
 
         <article class="lab-card">
@@ -741,8 +777,7 @@ export function mountDemoTab(container) {
     metricNodes: container.querySelector("#metricNodes"),
     metricDepth: container.querySelector("#metricDepth"),
     metricHistory: container.querySelector("#metricHistory"),
-    dfsList: container.querySelector("#dfsList"),
-    bfsList: container.querySelector("#bfsList"),
+    vdomTree: container.querySelector("#vdomTree"),
     observerBadge: container.querySelector("#observerBadge"),
     observerFeed: container.querySelector("#observerFeed")
   };
@@ -753,12 +788,14 @@ export function mountDemoTab(container) {
     history: [],
     historyIndex: 0,
     observerFeed: [],
-    observerCount: 0
+    observerCount: 0,
+    highlightedPaths: new Set()
   };
 
   function rebuildDraftFromEditor() {
     const nextTree = parseMarkupToTree(ui.editor.value);
     state.draftTree = cloneVNodeTree(nextTree);
+    state.highlightedPaths = new Set();
     renderVNodeTree(ui.testRoot, state.draftTree);
     renderTreeStats();
   }
@@ -810,12 +847,7 @@ export function mountDemoTab(container) {
     ui.metricNodes.textContent = String(stats.nodes);
     ui.metricDepth.textContent = String(stats.depth);
     ui.metricHistory.textContent = String(state.history.length);
-    ui.dfsList.innerHTML = stats.dfs
-      .map((entry) => `<div class="path-item"><code>${escapeHTML(entry.path)}</code><span>${escapeHTML(entry.label)}</span></div>`)
-      .join("");
-    ui.bfsList.innerHTML = stats.bfs
-      .map((entry) => `<div class="path-item"><code>${escapeHTML(entry.path)}</code><span>${escapeHTML(entry.label)}</span></div>`)
-      .join("");
+    ui.vdomTree.innerHTML = renderVNodeTreeMarkup(state.draftTree || state.actualTree, state.highlightedPaths);
   }
 
   function renderHistory() {
@@ -872,6 +904,7 @@ export function mountDemoTab(container) {
       characterData: true
     });
     syncEditorToDraft();
+    state.highlightedPaths = new Set();
     renderPatchPanels([], snapshot.note);
     renderHistory();
     renderTreeStats();
@@ -947,6 +980,7 @@ export function mountDemoTab(container) {
     const patches = diffVNodeTrees(state.draftTree, nextTree);
     applyPatchesToDom(ui.testRoot, patches, nextTree);
     state.draftTree = cloneVNodeTree(nextTree);
+    state.highlightedPaths = new Set();
     syncEditorToDraft();
     renderTreeStats();
   };
@@ -964,13 +998,16 @@ export function mountDemoTab(container) {
     const patches = diffVNodeTrees(previousTree, nextTree);
 
     if (!patches.length) {
+      state.highlightedPaths = new Set();
       renderPatchPanels([], "Diff 결과 변경점이 없습니다.");
+      renderTreeStats();
       return;
     }
 
     applyPatchesToDom(ui.actualRoot, patches, nextTree);
     state.actualTree = cloneVNodeTree(nextTree);
     state.draftTree = cloneVNodeTree(nextTree);
+    state.highlightedPaths = getPatchHighlightPaths(patches);
     syncEditorToDraft();
     const snapshot = createSnapshot(nextTree, `Patched ${patches.length} changes`, patches);
     pushHistory(snapshot);
