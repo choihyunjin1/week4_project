@@ -274,19 +274,8 @@ const PRESETS = {
 </section>`
 };
 
-const PATCH_TYPES = {
-  CREATE: "CREATE",
-  REMOVE: "REMOVE",
-  REPLACE: "REPLACE",
-  TEXT: "TEXT",
-  PROPS: "PROPS"
-};
-
-const ROOT_TYPE = "ROOT";
-const TEXT_TYPE = "TEXT";
-const ELEMENT_TYPE = "ELEMENT";
-const IGNORE_TAGS = new Set(["script"]);
-const BOOLEAN_PROPS = new Set(["checked", "selected", "disabled"]);
+const VDOMEngine = window.VDOMEngine;
+const { PATCH_TYPES } = VDOMEngine;
 
 const state = {
   realVNode: createRootVNode(),
@@ -520,7 +509,7 @@ function renderPatchLog() {
     type.textContent = patch.type;
 
     const message = document.createElement("span");
-    message.textContent = patch.message;
+    message.textContent = VDOMEngine.describePatch(patch);
 
     const path = document.createElement("span");
     path.className = "log-item__path";
@@ -607,334 +596,43 @@ function resetObserverData() {
 }
 
 function createRootVNode() {
-  return {
-    type: ROOT_TYPE,
-    children: []
-  };
+  return VDOMEngine.createRootVNode();
 }
 
 function createTextVNode(text) {
-  return {
-    type: TEXT_TYPE,
-    text
-  };
+  return VDOMEngine.createTextVNode(text);
 }
 
 function createElementVNode(tag, props, children) {
-  return {
-    type: ELEMENT_TYPE,
-    tag,
-    props,
-    children
-  };
+  return VDOMEngine.createElementVNode(tag, props, children);
 }
 
 function sourceToVNode(source) {
-  const container = document.createElement("div");
-  container.innerHTML = source;
-  removeIgnoredNodes(container);
-  return containerToVNode(container);
-}
-
-function removeIgnoredNodes(container) {
-  container.querySelectorAll(Array.from(IGNORE_TAGS).join(",")).forEach((node) => {
-    node.remove();
-  });
-}
-
-function containerToVNode(container) {
-  const root = createRootVNode();
-
-  root.children = Array.from(container.childNodes)
-    .map(domToVNode)
-    .filter(Boolean);
-
-  return root;
+  return VDOMEngine.sourceToVNode(source, { stripScripts: true });
 }
 
 function domToVNode(node) {
-  if (node.nodeType === Node.TEXT_NODE) {
-    if (!node.textContent || !node.textContent.trim()) {
-      return null;
-    }
-
-    return createTextVNode(node.textContent);
-  }
-
-  if (node.nodeType !== Node.ELEMENT_NODE) {
-    return null;
-  }
-
-  const props = {};
-
-  Array.from(node.attributes).forEach((attribute) => {
-    props[attribute.name] = attribute.value === "" ? true : attribute.value;
-  });
-
-  const children = Array.from(node.childNodes)
-    .map(domToVNode)
-    .filter(Boolean);
-
-  return createElementVNode(node.tagName.toLowerCase(), props, children);
+  return VDOMEngine.domNodeToVNode(node, "", 0);
 }
 
 function renderRootVNode(container, vnode) {
-  container.replaceChildren(...vnode.children.map(createDOMNode));
-}
-
-function createDOMNode(vnode) {
-  if (vnode.type === TEXT_TYPE) {
-    return document.createTextNode(vnode.text);
-  }
-
-  const element = document.createElement(vnode.tag);
-  updateProps(element, {}, vnode.props);
-
-  vnode.children.forEach((child) => {
-    element.appendChild(createDOMNode(child));
-  });
-
-  return element;
+  return VDOMEngine.renderRootVNode(container, vnode);
 }
 
 function diffRoot(oldRoot, newRoot) {
-  const patches = [];
-  const maxLength = Math.max(oldRoot.children.length, newRoot.children.length);
-
-  for (let index = 0; index < maxLength; index += 1) {
-    diffNode(oldRoot.children[index], newRoot.children[index], `${index}`, patches);
-  }
-
-  return patches;
-}
-
-function diffNode(oldVNode, newVNode, path, patches) {
-  if (!oldVNode && newVNode) {
-    patches.push({
-      type: PATCH_TYPES.CREATE,
-      path,
-      message: `${describeVNode(newVNode)} 노드를 생성합니다.`
-    });
-    return;
-  }
-
-  if (oldVNode && !newVNode) {
-    patches.push({
-      type: PATCH_TYPES.REMOVE,
-      path,
-      message: `${describeVNode(oldVNode)} 노드를 제거합니다.`
-    });
-    return;
-  }
-
-  if (!oldVNode || !newVNode) {
-    return;
-  }
-
-  if (!isSameVNodeType(oldVNode, newVNode)) {
-    patches.push({
-      type: PATCH_TYPES.REPLACE,
-      path,
-      message: `${describeVNode(oldVNode)}를 ${describeVNode(newVNode)}로 교체합니다.`
-    });
-    return;
-  }
-
-  if (oldVNode.type === TEXT_TYPE && newVNode.type === TEXT_TYPE) {
-    if (oldVNode.text !== newVNode.text) {
-      patches.push({
-        type: PATCH_TYPES.TEXT,
-        path,
-        message: `텍스트를 "${truncate(oldVNode.text)}"에서 "${truncate(newVNode.text)}"로 변경합니다.`
-      });
-    }
-    return;
-  }
-
-  const propChanges = diffProps(oldVNode.props, newVNode.props);
-
-  if (propChanges.length > 0) {
-    patches.push({
-      type: PATCH_TYPES.PROPS,
-      path,
-      message: `${describeVNode(newVNode)}의 속성 ${propChanges.join(", ")}를 업데이트합니다.`
-    });
-  }
-
-  const maxLength = Math.max(oldVNode.children.length, newVNode.children.length);
-
-  for (let index = 0; index < maxLength; index += 1) {
-    diffNode(oldVNode.children[index], newVNode.children[index], `${path}.${index}`, patches);
-  }
+  return VDOMEngine.diffRoot(oldRoot, newRoot);
 }
 
 function patchRoot(container, oldRoot, newRoot) {
-  const maxLength = Math.max(oldRoot.children.length, newRoot.children.length);
-
-  for (let index = maxLength - 1; index >= 0; index -= 1) {
-    patchNode(container, oldRoot.children[index], newRoot.children[index], index);
-  }
-}
-
-function patchNode(parent, oldVNode, newVNode, index) {
-  const currentNode = parent.childNodes[index];
-
-  if (!oldVNode && newVNode) {
-    const nextNode = createDOMNode(newVNode);
-    const referenceNode = parent.childNodes[index] || null;
-    parent.insertBefore(nextNode, referenceNode);
-    return;
-  }
-
-  if (oldVNode && !newVNode) {
-    if (currentNode) {
-      parent.removeChild(currentNode);
-    }
-    return;
-  }
-
-  if (!currentNode || !oldVNode || !newVNode) {
-    return;
-  }
-
-  if (!isSameVNodeType(oldVNode, newVNode)) {
-    parent.replaceChild(createDOMNode(newVNode), currentNode);
-    return;
-  }
-
-  if (oldVNode.type === TEXT_TYPE && newVNode.type === TEXT_TYPE) {
-    if (oldVNode.text !== newVNode.text) {
-      currentNode.textContent = newVNode.text;
-    }
-    return;
-  }
-
-  updateProps(currentNode, oldVNode.props, newVNode.props);
-
-  const maxLength = Math.max(oldVNode.children.length, newVNode.children.length);
-
-  for (let childIndex = maxLength - 1; childIndex >= 0; childIndex -= 1) {
-    patchNode(currentNode, oldVNode.children[childIndex], newVNode.children[childIndex], childIndex);
-  }
-}
-
-function diffProps(oldProps, newProps) {
-  const changes = [];
-  const keys = new Set([...Object.keys(oldProps), ...Object.keys(newProps)]);
-
-  keys.forEach((key) => {
-    if (!(key in newProps)) {
-      changes.push(`-${key}`);
-      return;
-    }
-
-    if (!(key in oldProps) || oldProps[key] !== newProps[key]) {
-      changes.push(`${key}=${String(newProps[key])}`);
-    }
-  });
-
-  return changes;
-}
-
-function updateProps(element, oldProps, newProps) {
-  const keys = new Set([...Object.keys(oldProps), ...Object.keys(newProps)]);
-
-  keys.forEach((key) => {
-    const oldValue = oldProps[key];
-    const newValue = newProps[key];
-
-    if (!(key in newProps)) {
-      removeProp(element, key, oldValue);
-      return;
-    }
-
-    if (!(key in oldProps) || oldValue !== newValue) {
-      setProp(element, key, newValue);
-    }
-  });
-}
-
-function setProp(element, key, value) {
-  if (BOOLEAN_PROPS.has(key)) {
-    element[key] = Boolean(value);
-
-    if (value) {
-      element.setAttribute(key, "");
-    } else {
-      element.removeAttribute(key);
-    }
-    return;
-  }
-
-  if (key === "value") {
-    element.value = value;
-  }
-
-  element.setAttribute(key, String(value));
-}
-
-function removeProp(element, key) {
-  if (BOOLEAN_PROPS.has(key)) {
-    element[key] = false;
-  }
-
-  if (key === "value") {
-    element.value = "";
-  }
-
-  element.removeAttribute(key);
-}
-
-function isSameVNodeType(first, second) {
-  if (first.type !== second.type) {
-    return false;
-  }
-
-  if (first.type === ELEMENT_TYPE) {
-    return first.tag === second.tag;
-  }
-
-  return true;
-}
-
-function describeVNode(vnode) {
-  if (!vnode) {
-    return "empty";
-  }
-
-  if (vnode.type === TEXT_TYPE) {
-    return "text";
-  }
-
-  return `<${vnode.tag}>`;
+  return VDOMEngine.patchRoot(container, oldRoot, newRoot);
 }
 
 function countNodes(vnode) {
-  if (!vnode) {
-    return 0;
-  }
-
-  if (vnode.type === TEXT_TYPE) {
-    return 1;
-  }
-
-  if (vnode.type === ROOT_TYPE) {
-    return vnode.children.reduce((total, child) => total + countNodes(child), 0);
-  }
-
-  return 1 + vnode.children.reduce((total, child) => total + countNodes(child), 0);
+  return Math.max(0, VDOMEngine.countNodes(vnode) - 1);
 }
 
 function getMaxDepth(vnode, depth = 0) {
-  if (!vnode) {
-    return depth;
-  }
-
-  if (!vnode.children || vnode.children.length === 0) {
-    return depth;
-  }
-
-  return Math.max(...vnode.children.map((child) => getMaxDepth(child, depth + 1)));
+  return Math.max(0, VDOMEngine.calculateMaxDepth(vnode) - depth);
 }
 
 function summarizeMutation(mutation) {
@@ -980,5 +678,5 @@ function truncate(text) {
 }
 
 function cloneVNode(vnode) {
-  return JSON.parse(JSON.stringify(vnode));
+  return VDOMEngine.cloneVNode(vnode);
 }
