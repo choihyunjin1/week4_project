@@ -21,7 +21,7 @@
           <h1 title="리액트 스타일의 가상 DOM과 일반 DOM 직접 조작 간의 비교를 수행합니다.">리액트 스타일 가상 DOM vs 직접 DOM 조작</h1>
           <p class="hero__description" title="이 앱의 주요 기능과 목적에 대한 설명입니다.">
             같은 상태 변경 스트림(mutation stream)을 두 런타임에 지속적으로 보내고, 지연 시간과 DOM 갱신 비용을 실시간으로 비교합니다.
-            아래 패치 실험실(Patch Lab)에서는 실제 DOM을 가상 DOM으로 변환하고 비교(diff) 후 패치(patch)하는 과정을 직접 검증할 수 있습니다.
+            이 페이지는 성능 비교 시연에만 집중하며, 패치 알고리즘 실험과 스튜디오 사례는 별도 데모로 분리했습니다.
           </p>
         </div>
         <div class="hero__metrics">
@@ -62,8 +62,8 @@
           <div class="preset-toolbar">
             <div class="preset-toolbar__actions" title="사전 정의된 부하 프로필을 빠르게 적용합니다.">
               <button id="presetBalancedButton" class="button button--small" type="button" title="가상 DOM과 일반 조작이 비슷한 성능을 내도록 중간 수준의 부하를 설정합니다.">균형 프리셋</button>
-              <button id="presetFavorableButton" class="button button--small" type="button" title="가상 DOM이 훨씬 유리하도록 변경 범위를 좁히고 부분 갱신만 발생하게 설정합니다.">가상 DOM 유리</button>
-              <button id="presetUnfavorableButton" class="button button--small" type="button" title="가상 DOM 연산이 비효율적이 되도록 전체 리스트 재정렬 등의 극단적 조건을 조성합니다.">가상 DOM 불리</button>
+              <button id="presetFavorableButton" class="button button--small" type="button" title="시연용으로 가상 DOM의 장점이 확실히 보이도록 320개 노드, 1% 변경, 반복 selector walk 6회, 강한 layout read 압력을 설정합니다.">VDOM 유리 극대화</button>
+              <button id="presetUnfavorableButton" class="button button--small" type="button" title="시연용으로 직접 DOM 조작이 더 단순하게 유리해지도록 96개 노드, 매 tick 전체 재정렬, cached walk만 남긴 조건을 설정합니다.">직접 DOM 유리 극대화</button>
             </div>
             <div class="preset-toolbar__meta" title="현재 선택된 프리셋의 특성 설명입니다.">
               <span id="presetLabelChip" class="chip chip--blue">균형 프리셋</span>
@@ -91,7 +91,7 @@
 
             <label class="control" title="화면에 매번 그려질 돔 트리의 전체 노드 개수를 설정합니다.">
               <span>총 렌더링 노드 수 (Node Load)</span>
-              <input id="itemCountRange" type="range" min="24" max="240" step="8" value="96" title="노드가 많아질수록 벤치마크 부하가 커집니다." />
+              <input id="itemCountRange" type="range" min="24" max="320" step="8" value="96" title="노드가 많아질수록 벤치마크 부하가 커집니다." />
               <strong id="itemCountValue">96 개</strong>
             </label>
 
@@ -197,122 +197,30 @@
           <div id="benchmarkFeed" class="feed-panel" title="이 영역에 상태 데이터가 직렬화되어 지속적으로 기록됩니다."></div>
         </section>
 
-        <section class="manual-grid">
-          <article class="card" title="패치 랩에서는 가상 DOM이 실제 DOM에 반영되는 과정을 검증합니다.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="실험 대상 실제 브라우저 객체입니다.">패치 실험실 (Patch Lab)</p>
-                <h2 title="패치가 반영되는 브라우저 노출 영역입니다.">라이브 렌더링 영역 (Real Area)</h2>
-              </div>
-              <span class="chip chip--indigo" title="이 영역은 순수하게 자바스크립트로 업데이트 됩니다.">브라우저 DOM 타겟</span>
+        <section class="card" title="공통 엔진을 사용하는 다른 데모로 이동할 수 있습니다.">
+          <div class="card__header">
+            <div>
+              <p class="section-label" title="성능 비교 외의 기능 검증은 별도 데모로 분리했습니다.">연결 데모 (Related Demos)</p>
+              <h2 title="같은 공통 VDOM 엔진을 사용하는 다른 사례입니다.">성능 외 검증은 별도 사례로 분리</h2>
             </div>
-            <div id="realDomRoot" class="manual-surface" aria-label="실제 DOM 영역" title="앱의 가상 DOM이 패치 함수를 거쳐 실제로 반영되어 표출되는 영역입니다."></div>
-          </article>
-
-          <article class="card" title="HTML 구조를 편집하고 그 결과를 가상 DOM으로 전달하는 에디터입니다.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="가상 DOM을 생성할 원본 객체입니다.">가상 DOM 에디터 (VNode Source)</p>
-                <h2 title="아래에서 HTML을 수정하면 테스트 영역에 반영됩니다.">DOM 트리 수정 에디터</h2>
-              </div>
-              <div class="toolbar toolbar--small">
-                <button id="patchButton" class="button button--primary" type="button" title="수정된 트리를 라이브 렌더링 영역과 비교하여 차이점을 패치합니다.">Diff & Patch 연산 실행</button>
-                <button id="backButton" class="button" type="button" title="이전 히스토리 상태로 되돌립니다.">실행 취소 (Undo)</button>
-                <button id="forwardButton" class="button" type="button" title="다음 히스토리 상태로 되돌립니다.">다시 실행 (Redo)</button>
-                <button id="resetButton" class="button button--ghost" type="button" title="소스와 렌더링 영역을 전부 지우고 초기화합니다.">테스트 리셋</button>
-              </div>
-            </div>
-            <div id="testDomRoot" class="manual-surface manual-surface--editable" contenteditable="true" aria-label="테스트 영역" title="텍스트나 엘리먼트를 직접 편집할 수 있는 WYSWYG 표면입니다."></div>
-            <div class="source-toolbar">
-              <button id="syncSourceButton" class="button button--small" type="button" title="HTML 소스 에디터의 코드를 위의 렌더링 영역과 동기화합니다.">에디터 소스를 렌더링 화면에 동기화</button>
-              <span id="currentStateLabel" class="inline-state" title="현재의 가상 DOM 스냅샷 순번입니다.">상태 초기화 됨 (Initial)</span>
-            </div>
-            <textarea id="sourceEditor" class="source-editor" spellcheck="false" title="HTML 트리를 직접 타이핑하여 작성하는 코드 에디터 창입니다."></textarea>
-            <p id="currentStateDescription" class="helper-text" title="상세 설명 로그">앱 초기화 대기 중...</p>
-            <p id="editorMessage" class="helper-text" title="편집기 알림">준비 완료 (Ready)</p>
-          </article>
-        </section>
-
-        <section class="detail-grid" title="차이점 비교와 돔 트리 구조를 심층적으로 분석하는 탭들입니다.">
-          <article class="card" title="가상 DOM 비교(Diff) 알고리즘이 발견한 노드 차이와 지시사항 로그입니다.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="패치를 생성하기 위한 비교 목록입니다.">패치 로그 (Patch Log)</p>
-                <h2 title="이전 스냅샷과 현재 스냅샷 간의 최소 변경 필요 지시사항입니다.">알고리즘 분석 (Diff) 결과</h2>
-              </div>
-              <span id="patchSummary" class="chip chip--slate" title="발견된 총 수정 사항 개수입니다.">총 0개 패치 발견</span>
-            </div>
-            <div id="diffLogPanel" class="log-panel" title="이 패널에 Diff 리포트가 표시됩니다."></div>
-          </article>
-
-          <article class="card" title="상태 값의 시간순 변경 이력(History) 기록 패널입니다.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="기록 저장소 (History Logger)">변경 이력 (History Log)</p>
-                <h2 title="이전 상태로 롤백하거나 스냅샷을 비교할 때 씁니다.">상태 관리 히스토리 트랙</h2>
-              </div>
-              <span id="historyMeta" class="chip chip--slate" title="현재 포인터 위치 / 총 기록 건수">0 / 0</span>
-            </div>
-            <div id="historyPanel" class="history-panel" title="상태의 체크포인트 기록입니다. 클릭 시 복원 가능합니다."></div>
-          </article>
-
-          <article class="card card--wide" title="트리 구조화된 가상 DOM 노드를 시각적으로 탐색합니다.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="JavaScript 메모리 상의 VNode 구조도입니다.">가상 DOM 트리 뷰 (Virtual DOM Tree)</p>
-                <h2 title="현재 활성화된 VNode의 계층 구조 시각화입니다.">현재 활성 트리 구조도</h2>
-              </div>
-              <div class="graph-meta">
-                <span id="treeMeta" class="chip chip--slate" title="데이터 구조 상의 총 노드 개수입니다.">노드 수: 0개</span>
-                <span id="depthMeta" class="chip chip--slate" title="가상 DOM 트리의 최대 깊이(Depth)입니다.">최대 깊이: 0</span>
-              </div>
-            </div>
-            <div id="treePanel" class="tree-panel" title="가상 DOM이 JSON 형태에서 Tree 구조로 변환된 형태가 렌더링됩니다."></div>
-          </article>
-
-          <article class="card" title="가위 탐색 렌더링 패널입니다. 깊이 우선 탐색 방식.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="Tree Traversal 알고리즘 구현체 시각화입니다.">순회 방식 분석 (Traversal)</p>
-                <h2 title="주로 React 렌더링 과정에서 트리를 훑는 깊이 우선 탐색 순서입니다.">깊이 우선 탐색 (DFS) 렌더 패스</h2>
-              </div>
-            </div>
-            <div id="dfsPanel" class="traversal-panel" title="노드가 방문되는 순서가 자식 우선으로 애니메이션 표기됩니다."></div>
-          </article>
-
-          <article class="card" title="너비 탐색 렌더링 패널입니다. 너비 우선 탐색 방식.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="Tree Traversal 알고리즘 구현체 시각화입니다.">순회 방식 분석 (Traversal)</p>
-                <h2 title="레벨 단위로 순서대로 방문하는 너비 우선 탐색 순서입니다.">너비 우선 탐색 (BFS) 렌더 패스</h2>
-              </div>
-            </div>
-            <div id="bfsPanel" class="traversal-panel" title="노드가 계층 단위 순서로 방문되며 애니메이션 표기됩니다."></div>
-          </article>
-
-          <article class="card card--wide" title="전문가용 알고리즘 설명 패널입니다.">
-            <div class="card__header">
-              <div>
-                <p class="section-label" title="학습 가이드 문서 공간입니다.">동작 원리 해설 (Explain)</p>
-                <h2 title="이 시뮬레이터가 어째서 리액트와 유사한 성능 시계열을 보이는지 원리를 설명합니다.">성능 증명 및 React 패러다임 비교 해설</h2>
-              </div>
-            </div>
-            <div id="explanationPanel" class="explanation-panel" title="리액트의 Reconciliation 과정과 이 엔진의 메커니즘 차이/분석이 표기되는 텍스트 공간입니다."></div>
-          </article>
+          </div>
+          <div class="related-grid">
+            <article class="related-card">
+              <strong>패치 알고리즘 실험실</strong>
+              <p>실제 DOM -> VDOM 변환, Diff, Patch, Undo/Redo, 트리 시각화를 집중적으로 검증하는 페이지입니다.</p>
+              <a class="button button--small" href="../choiyeongbeen/index.html">패치 실험실 열기</a>
+            </article>
+            <article class="related-card">
+              <strong>Patchletter Studio</strong>
+              <p>공통 엔진이 뉴스레터 에디터 사례에 실제로 어떻게 붙는지 보여주는 통합 사례입니다.</p>
+              <a class="button button--small" href="../jungchanbin/index.html">스튜디오 사례 열기</a>
+            </article>
+          </div>
         </section>
       </main>
-
-      <template id="treeNodeTemplate">
-        <div class="tree-node">
-          <div class="tree-node__line">
-            <span class="tree-node__tag"></span>
-            <span class="tree-node__path"></span>
-          </div>
-          <div class="tree-node__meta"></div>
-        </div>
-      </template>
     </div>
 
+    <script src="../core/vdom.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

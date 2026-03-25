@@ -1,2186 +1,409 @@
-/*
-  React-style Virtual DOM Engine Console
-  Vanilla JavaScript implementation focused on explainability.
-*/
+const VDOMEngine = window.VDOMEngine;
 
-/* -------------------------------------------------------------------------- */
-/* 1. constants                                                                */
-/* -------------------------------------------------------------------------- */
-
-const NODE_TYPE = {
-  ELEMENT: 1,
-  TEXT: 3,
-  COMMENT: 8
+const PATCH_CLASS_MAP = {
+  CREATE: "insert",
+  REMOVE: "remove",
+  REPLACE: "replace",
+  TEXT: "text",
+  ATTR_SET: "props",
+  ATTR_REMOVE: "props",
+  REORDER_CHILDREN: "reorder"
 };
 
-const PATCH_TYPES = {
-  CREATE: "CREATE",
-  REMOVE: "REMOVE",
-  REPLACE: "REPLACE",
-  TEXT: "TEXT",
-  ATTR_SET: "ATTR_SET",
-  ATTR_REMOVE: "ATTR_REMOVE",
-  REORDER_CHILDREN: "REORDER_CHILDREN"
+const PATCH_SUMMARY_TYPES = [
+  ["CREATE", "insert"],
+  ["REMOVE", "remove"],
+  ["REPLACE", "replace"],
+  ["ATTR_SET", "props"],
+  ["ATTR_REMOVE", "props"],
+  ["TEXT", "text"],
+  ["REORDER_CHILDREN", "reorder"]
+];
+
+const elements = {
+  realRoot: document.getElementById("realRoot"),
+  testRoot: document.getElementById("testRoot"),
+  htmlEditor: document.getElementById("htmlEditor"),
+  patchButton: document.getElementById("patchButton"),
+  undoButton: document.getElementById("undoButton"),
+  redoButton: document.getElementById("redoButton"),
+  resetButton: document.getElementById("resetButton"),
+  statusText: document.getElementById("statusText"),
+  historyIndexView: document.getElementById("historyIndex"),
+  patchCountView: document.getElementById("patchCount"),
+  nodeCountView: document.getElementById("nodeCount"),
+  publishTimeView: document.getElementById("publishTime"),
+  patchLog: document.getElementById("patchLog"),
+  patchSummary: document.getElementById("patchSummary"),
+  historyRail: document.getElementById("historyRail"),
+  currentVdomView: document.getElementById("currentVdomView"),
+  nextVdomView: document.getElementById("nextVdomView"),
+  currentVdomTree: document.getElementById("currentVdomTree"),
+  nextVdomTree: document.getElementById("nextVdomTree"),
+  publishedStamp: document.getElementById("publishedStamp")
 };
 
-const GRAPH_POINT_LIMIT = 90;
-const BENCHMARK_BURST_TICKS = 30;
-const BENCHMARK_MAX_CONTINUOUS_MS = 20000;
-const BENCHMARK_MIN_DELAY_MS = 34;
-const BENCHMARK_TARGET_UTILIZATION = 0.55;
-const BENCHMARK_UI_REFRESH_MS = 90;
-const BENCHMARK_PHASES = ["warm-up", "pressure", "peak", "cooldown"];
-const MODE_LABELS = {
-  mixed: "Mixed",
-  text: "Text churn",
-  attr: "Attribute pulse",
-  list: "List reorder"
+const snippetLibrary = {
+  story: `
+        <article class="story-card">
+          <strong>추가된 새 스토리 (New Story)</strong>
+          <h3>이 카드도 알고리즘(Diff) 삽입 연산 테스트에 쓰입니다.</h3>
+          <p>임의로 코드가 길어졌을 때 패치 발행 버튼을 누르면 이 구간이 CREATE 패치 케이스로 분류되어 실제 화면 지면에만 덧붙여집니다.</p>
+        </article>`,
+  note: `
+        <section class="newsletter-section">
+          <article class="insight-card">
+            <strong>강조 안내문 (Highlight Note)</strong>
+            <h3>테스트용 새 하이라이트 공지 섹션입니다.</h3>
+            <p>편집본 에디터 문자열에 이 코드가 삽입되면 엔진은 전역을 스캔하다가 이 구간을 CREATE 패치 대상으로 분리해냅니다.</p>
+          </article>
+        </section>`,
+  cta: `
+        <section class="newsletter-section">
+          <article class="sponsor-card">
+            <strong>사용자 행동 유도 (CTA Banner)</strong>
+            <h3>구독자들이 즉시 누르고 싶게 만드는 핵심 버튼(Call To Action) 영역입니다.</h3>
+            <p>아래 버튼의 class나 href 링크 주소를 고의로 바꾸고 패치를 수행해 보세요. ATTR_SET / ATTR_REMOVE 케이스가 어떻게 일어나는지 바로 확인할 수 있습니다.</p>
+            <div class="newsletter-actions">
+              <a class="newsletter-button" href="#new-action-trigger">거대한 혜택 받으러 가기 (New Action)</a>
+            </div>
+          </article>
+        </section>`,
+  footer: `
+            <a href="#team">팀 개발 스쿼드 소개 링크</a>`
 };
-const BENCHMARK_PRESETS = {
-  balanced: {
-    label: "균형",
-    description: "기본 스트림",
-    mode: "mixed",
-    frequency: 8,
-    itemCount: 96,
-    mutationRatio: 0.08,
-    reorderEvery: 3,
-    layoutReadEvery: 8,
-    rootLayoutReads: 0
-  },
-  favorable: {
-    label: "VDOM 유리",
-    description: "큰 트리 + 국소 변경 + layout read 혼합",
-    mode: "mixed",
-    frequency: 10,
-    itemCount: 160,
-    mutationRatio: 0.04,
-    reorderEvery: 4,
-    layoutReadEvery: 6,
-    rootLayoutReads: 1
-  },
-  unfavorable: {
-    label: "VDOM 불리",
-    description: "작은 트리 + 거의 전체 변경 + layout read 낮음",
-    mode: "text",
-    frequency: 6,
-    itemCount: 24,
-    mutationRatio: 1,
-    reorderEvery: 9999,
-    layoutReadEvery: 0,
-    rootLayoutReads: 0
-  }
-};
-
-const SELECTORS = {
-  vdomCurrentLatency: "#vdomCurrentLatency",
-  redrawCurrentLatency: "#redrawCurrentLatency",
-  latencyGapValue: "#latencyGapValue",
-  benchmarkStatus: "#benchmarkStatus",
-  benchmarkStartButton: "#benchmarkStartButton",
-  benchmarkStopButton: "#benchmarkStopButton",
-  benchmarkBurstButton: "#benchmarkBurstButton",
-  benchmarkResetButton: "#benchmarkResetButton",
-  presetBalancedButton: "#presetBalancedButton",
-  presetFavorableButton: "#presetFavorableButton",
-  presetUnfavorableButton: "#presetUnfavorableButton",
-  presetLabelChip: "#presetLabelChip",
-  loadWarningChip: "#loadWarningChip",
-  loadReasonChip: "#loadReasonChip",
-  mutationModeSelect: "#mutationModeSelect",
-  frequencyRange: "#frequencyRange",
-  frequencyValue: "#frequencyValue",
-  itemCountRange: "#itemCountRange",
-  itemCountValue: "#itemCountValue",
-  mutationRatioRange: "#mutationRatioRange",
-  mutationRatioValue: "#mutationRatioValue",
-  tickCounter: "#tickCounter",
-  streamHint: "#streamHint",
-  benchmarkVdomRoot: "#benchmarkVdomRoot",
-  benchmarkDirectRoot: "#benchmarkDirectRoot",
-  vdomAvgLatency: "#vdomAvgLatency",
-  vdomP95Latency: "#vdomP95Latency",
-  vdomMutationTotal: "#vdomMutationTotal",
-  redrawAvgLatency: "#redrawAvgLatency",
-  redrawP95Latency: "#redrawP95Latency",
-  redrawMutationTotal: "#redrawMutationTotal",
-  graphCanvas: "#graphCanvas",
-  graphScaleLabel: "#graphScaleLabel",
-  patchAverageChip: "#patchAverageChip",
-  performancePanel: "#performancePanel",
-  benchmarkFeed: "#benchmarkFeed",
-  realDomRoot: "#realDomRoot",
-  testDomRoot: "#testDomRoot",
-  sourceEditor: "#sourceEditor",
-  patchButton: "#patchButton",
-  backButton: "#backButton",
-  forwardButton: "#forwardButton",
-  resetButton: "#resetButton",
-  syncSourceButton: "#syncSourceButton",
-  currentStateLabel: "#currentStateLabel",
-  currentStateDescription: "#currentStateDescription",
-  editorMessage: "#editorMessage",
-  patchSummary: "#patchSummary",
-  historyMeta: "#historyMeta",
-  diffLogPanel: "#diffLogPanel",
-  historyPanel: "#historyPanel",
-  treePanel: "#treePanel",
-  treeMeta: "#treeMeta",
-  depthMeta: "#depthMeta",
-  dfsPanel: "#dfsPanel",
-  bfsPanel: "#bfsPanel",
-  explanationPanel: "#explanationPanel",
-  treeNodeTemplate: "#treeNodeTemplate"
-};
-
-const MANUAL_SAMPLE_TEMPLATE = `
-<div id="console-root" class="patch-sample" data-mode="stable">
-  <section id="summary" class="sample-section" data-role="summary">
-    <h1>Patch Lab Console</h1>
-    <p>
-      <strong>Virtual DOM</strong> patch 실험용 샘플입니다.
-      <span class="sample-badge" data-key="phase">stable</span>
-      상태를 텍스트, 속성, 자식 순서 관점에서 바꿔보세요.
-    </p>
-  </section>
-  <section id="matrix" class="sample-section" data-role="matrix">
-    <article class="sample-card" id="lane-a" data-key="lane-a">
-      <h2>Lane A</h2>
-      <p>text mutation candidate</p>
-    </article>
-    <article class="sample-card" id="lane-b" data-key="lane-b">
-      <h2>Lane B</h2>
-      <p>attribute mutation candidate</p>
-    </article>
-    <article class="sample-card" id="lane-c" data-key="lane-c">
-      <h2>Lane C</h2>
-      <p>reorder mutation candidate</p>
-    </article>
-  </section>
-  <ul class="sample-list" data-list="alerts">
-    <li data-key="cpu">CPU alert</li>
-    <li data-key="memory">Memory alert</li>
-    <li data-key="queue">Queue alert</li>
-  </ul>
-</div>
-`.trim();
-
-/* -------------------------------------------------------------------------- */
-/* 2. state                                                                    */
-/* -------------------------------------------------------------------------- */
 
 const state = {
-  ui: {},
-  manual: {
-    realVNode: null,
-    testVNode: null,
-    patches: [],
-    history: [],
-    currentHistoryIndex: -1
-  },
-  benchmark: {
-    running: false,
-    timer: null,
-    refreshTimer: null,
-    tick: 0,
-    config: {
-      ...cloneValue(BENCHMARK_PRESETS.balanced),
-      presetKey: "balanced"
-    },
-    model: null,
-    vdomVNode: null,
-    latestPatchCount: 0,
-    latestNodeCount: 0,
-    series: {
-      vdom: [],
-      redraw: [],
-      patch: [],
-      delta: []
-    },
-    feed: [],
-    observers: {
-      vdom: null,
-      redraw: null
-    },
-    mutationTotals: {
-      vdom: 0,
-      redraw: 0
-    },
-    lastTickCost: 0,
-    effectiveFrequency: 0,
-    runStartedAt: 0,
-    protectionState: "stable",
-    burstRemaining: 0,
-    lastStopReason: "manual"
-  },
-  graph: {
-    frame: null,
-    dirty: false
-  }
+  currentTemplateId: "main",
+  currentVdom: null,
+  history: [],
+  historyIndex: 0
 };
 
-/* -------------------------------------------------------------------------- */
-/* 3. helper utils                                                             */
-/* -------------------------------------------------------------------------- */
-
-function getElements() {
-  return Object.fromEntries(
-    Object.entries(SELECTORS).map(([key, selector]) => [key, document.querySelector(selector)])
-  );
+function templateHTML(templateId = "main") {
+  const id = templateId === "event" ? "eventTemplate" : "sampleTemplate";
+  state.currentTemplateId = templateId === "event" ? "event" : "main";
+  return document.getElementById(id).innerHTML.trim();
 }
 
-function cloneValue(value) {
-  return value == null ? value : JSON.parse(JSON.stringify(value));
+function cloneData(data) {
+  return VDOMEngine.cloneVNode(data);
 }
 
-function escapeHTML(value) {
+function nowLabel() {
+  return new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function setStatus(message) {
+  elements.statusText.textContent = message;
+}
+
+function flashPublishedPane() {
+  elements.realRoot.classList.remove("flash");
+  void elements.realRoot.offsetWidth;
+  elements.realRoot.classList.add("flash");
+  window.setTimeout(() => elements.realRoot.classList.remove("flash"), 700);
+}
+
+function sourceToVdom(source) {
+  return VDOMEngine.sourceToVNode(source, { ignoreTags: ["script"] });
+}
+
+function containerToVdom(container) {
+  return VDOMEngine.domToVNode(container);
+}
+
+function renderRoot(container, rootVdom) {
+  VDOMEngine.renderRootVNode(container, rootVdom);
+}
+
+function countDisplayNodes(vdom) {
+  return Math.max(0, VDOMEngine.countNodes(vdom) - 1);
+}
+
+function formatPath(path) {
+  if (!path || path === "0") {
+    return "root";
+  }
+
+  const segments = String(path).split("-").slice(1);
+  return segments.length ? segments.join(" > ") : "root";
+}
+
+function escapeHtml(value) {
   return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
-function sanitizeText(text) {
-  return typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+function getTreeLabel(vnode) {
+  return vnode.type === "text" ? "#text" : `<${vnode.tag}>`;
 }
 
-function formatMs(value) {
-  return `${Number(value || 0).toFixed(2)}ms`;
-}
-
-function getMutationScopeText(itemCount, mutationRatio) {
-  const changedCount = Math.max(1, Math.round(itemCount * mutationRatio));
-  const percent = Math.round(mutationRatio * 100);
-  return `${percent}% · 약 ${changedCount} nodes/tick`;
-}
-
-function average(values) {
-  if (!values.length) {
-    return 0;
-  }
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function percentile(values, target) {
-  if (!values.length) {
-    return 0;
-  }
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * target) - 1));
-  return sorted[index];
-}
-
-function getPresetDefinition(presetKey) {
-  return BENCHMARK_PRESETS[presetKey] || null;
-}
-
-function getCurrentPresetMeta() {
-  const preset = getPresetDefinition(state.benchmark.config.presetKey);
-  if (preset) {
-    return preset;
-  }
-  return {
-    label: "커스텀",
-    description: "수동으로 조정된 스트림",
-    mode: state.benchmark.config.mode
-  };
-}
-
-function getLoadAdvisory(config = state.benchmark.config) {
-  const readPressure = config.layoutReadEvery > 0 ? 8 / config.layoutReadEvery + config.rootLayoutReads * 1.2 : 0.3;
-  const loadScore = (config.frequency * config.itemCount / 32) * (1 + readPressure);
-
-  if (loadScore >= 70) {
-    return {
-      label: "고부하 경고",
-      reason: "스트림이 빠르고 layout read 압력이 높습니다",
-      chipClass: "chip--rose"
-    };
-  }
-
-  if (loadScore >= 25) {
-    return {
-      label: "부하 주의",
-      reason: "브라우저 탭이 다소 무거워질 수 있습니다",
-      chipClass: "chip--amber"
-    };
-  }
-
-  return {
-    label: "부하 안전",
-    reason: "시연용 기본 부하 범위입니다",
-    chipClass: "chip--green"
-  };
-}
-
-function trimSeries(values, limit = GRAPH_POINT_LIMIT) {
-  while (values.length > limit) {
-    values.shift();
-  }
-}
-
-function rotateArray(values, shift) {
-  if (!values.length) {
-    return [];
-  }
-  const normalized = ((shift % values.length) + values.length) % values.length;
-  return values.slice(normalized).concat(values.slice(0, normalized));
-}
-
-function createRootContainer() {
-  return {
-    type: "element",
-    tag: "div",
-    attrs: { "data-virtual-root": "true" },
-    children: [],
-    text: "",
-    key: "__root__",
-    path: "0",
-    depth: 0
-  };
-}
-
-function buildKey(attrs, fallbackKey) {
-  if (!attrs) {
-    return fallbackKey;
-  }
-  return attrs["data-key"] || attrs.key || attrs.id || fallbackKey;
-}
-
-function serializeHTML(node) {
-  return node ? node.innerHTML.trim() : "";
-}
-
-function safelyParseHTML(html) {
-  const template = document.createElement("template");
-  try {
-    template.innerHTML = html && html.trim() ? html.trim() : "";
-  } catch (error) {
-    return { fragment: template.content, error };
-  }
-  return { fragment: template.content, error: null };
-}
-
-function renderHTMLIntoTarget(target, html) {
-  const { fragment, error } = safelyParseHTML(html);
-  target.innerHTML = "";
-  if (fragment.childNodes.length) {
-    target.appendChild(fragment.cloneNode(true));
-  }
-  return error;
-}
-
-function isComparableDomNode(node) {
-  if (!node) {
-    return false;
-  }
-  if (node.nodeType === NODE_TYPE.COMMENT) {
-    return false;
-  }
-  if (node.nodeType === NODE_TYPE.TEXT) {
-    return Boolean((node.textContent || "").trim());
-  }
-  return node.nodeType === NODE_TYPE.ELEMENT;
-}
-
-function getComparableChildNodes(node) {
-  return Array.from(node.childNodes || []).filter((child) => isComparableDomNode(child));
-}
-
-function pathToSegments(path) {
-  return String(path)
-    .split("-")
-    .slice(1)
-    .map((segment) => Number(segment))
-    .filter((segment) => Number.isInteger(segment));
-}
-
-function getPathDepth(path) {
-  return String(path).split("-").length;
-}
-
-function countNodes(vNode) {
-  if (!vNode) {
-    return 0;
-  }
-  return 1 + (vNode.children || []).reduce((total, child) => total + countNodes(child), 0);
-}
-
-function calculateMaxDepth(vNode) {
-  if (!vNode) {
-    return 0;
-  }
-  if (!vNode.children || !vNode.children.length) {
-    return vNode.depth || 0;
-  }
-  return Math.max(...vNode.children.map((child) => calculateMaxDepth(child)));
-}
-
-function getNodeDescriptor(vNode) {
-  if (!vNode) {
-    return "null";
-  }
-  if (vNode.type === "text") {
-    return `#text("${sanitizeText(vNode.text)}")`;
-  }
-  return `<${vNode.tag}>`;
-}
-
-function getReadableNodeSummary(vNode) {
-  if (!vNode) {
-    return "empty";
-  }
-  if (vNode.type === "text") {
-    return `text:${sanitizeText(vNode.text) || "(blank)"}`;
-  }
-  return `${vNode.tag} | attrs:${Object.keys(vNode.attrs || {}).length} | children:${(vNode.children || []).length}`;
-}
-
-function getDomKey(node, index) {
-  if (!node || node.nodeType !== NODE_TYPE.ELEMENT) {
-    return `__index_${index}`;
-  }
-  return node.getAttribute("data-key") || node.getAttribute("key") || node.id || `__index_${index}`;
-}
-
-function setManualStatus(label, description) {
-  state.ui.currentStateLabel.textContent = label;
-  state.ui.currentStateDescription.textContent = description;
-}
-
-/* -------------------------------------------------------------------------- */
-/* 4. virtual dom utils                                                        */
-/* -------------------------------------------------------------------------- */
-
-function createElementVNode(tag, attrs = {}, children = []) {
-  return {
-    type: "element",
-    tag,
-    attrs,
-    children: children.map((child) => (typeof child === "string" ? createTextVNode(child) : child)),
-    text: "",
-    key: null,
-    path: "",
-    depth: 0
-  };
-}
-
-function createTextVNode(text) {
-  return {
-    type: "text",
-    tag: null,
-    attrs: {},
-    children: [],
-    text,
-    key: null,
-    path: "",
-    depth: 0
-  };
-}
-
-/*
-  이 함수의 역할:
-  실제 DOM 노드를 Virtual DOM 객체 트리로 변환한다.
-  입력:
-  DOM Node, 현재 path 문자열, depth 숫자
-  출력:
-  Virtual DOM 객체 또는 null
-  왜 필요한지:
-  브라우저가 관리하는 실제 DOM을 diff 가능한 메모리 상 객체 트리로 바꿔야 React-style 비교를 직접 구현할 수 있다.
-*/
-function domNodeToVNode(node, path, depth) {
-  if (!node) {
-    return null;
-  }
-  if (node.nodeType === NODE_TYPE.COMMENT) {
-    return null;
-  }
-  if (node.nodeType === NODE_TYPE.TEXT) {
-    const rawText = node.textContent || "";
-    if (!rawText.trim()) {
-      return null;
-    }
-    return {
-      type: "text",
-      tag: null,
-      attrs: {},
-      children: [],
-      text: rawText,
-      key: null,
-      path,
-      depth
-    };
-  }
-  if (node.nodeType !== NODE_TYPE.ELEMENT) {
-    return null;
-  }
-  const attrs = {};
-  Array.from(node.attributes || []).forEach((attribute) => {
-    attrs[attribute.name] = attribute.value === "" ? true : attribute.value;
-  });
-  const children = [];
-  let childIndex = 0;
-  Array.from(node.childNodes || []).forEach((child) => {
-    const childVNode = domNodeToVNode(child, `${path}-${childIndex}`, depth + 1);
-    if (childVNode) {
-      children.push(childVNode);
-      childIndex += 1;
-    }
-  });
-  return {
-    type: "element",
-    tag: node.tagName.toLowerCase(),
-    attrs,
-    children,
-    text: "",
-    key: buildKey(attrs, `${node.tagName.toLowerCase()}-${path}`),
-    path,
-    depth
-  };
-}
-
-/*
-  이 함수의 역할:
-  DOM 컨테이너의 자식들을 읽어서 루트 래퍼 Virtual DOM으로 변환한다.
-  입력:
-  DOM Element 컨테이너
-  출력:
-  루트 Virtual DOM 객체
-  왜 필요한지:
-  비교 대상이 여러 루트 노드를 가질 수 있으므로 하나의 트리 루트로 감싸야 diff와 history를 단순하게 유지할 수 있다.
-*/
-function domToVNode(container) {
-  const root = createRootContainer();
-  let childIndex = 0;
-  Array.from(container.childNodes || []).forEach((child) => {
-    const childVNode = domNodeToVNode(child, `0-${childIndex}`, 1);
-    if (childVNode) {
-      root.children.push(childVNode);
-      childIndex += 1;
-    }
-  });
-  return root;
-}
-
-function normalizeVNodePaths(vNode, path = "0", depth = 0) {
-  if (!vNode) {
-    return null;
-  }
-  vNode.path = path;
-  vNode.depth = depth;
-  if (vNode.type === "element") {
-    vNode.key = buildKey(vNode.attrs, `${vNode.tag}-${path}`);
-  }
-  (vNode.children || []).forEach((child, index) => {
-    normalizeVNodePaths(child, `${path}-${index}`, depth + 1);
-  });
-  return vNode;
-}
-
-/*
-  이 함수의 역할:
-  Virtual DOM 객체 하나를 실제 DOM 노드로 생성한다.
-  입력:
-  Virtual DOM 객체
-  출력:
-  DOM Node
-  왜 필요한지:
-  CREATE, REPLACE, REORDER 단계에서 메모리상의 Virtual DOM을 다시 실제 DOM 노드로 만들어야 patch를 적용할 수 있다.
-*/
-function createDOMFromVNode(vNode) {
-  if (!vNode) {
-    return document.createTextNode("");
-  }
-  if (vNode.type === "text") {
-    return document.createTextNode(vNode.text || "");
-  }
-  const element = document.createElement(vNode.tag);
-  Object.entries(vNode.attrs || {}).forEach(([name, value]) => {
+function getTreeProps(vnode) {
+  return Object.entries(vnode.attrs || {}).map(([key, value]) => {
     if (value === true) {
-      element.setAttribute(name, "");
-    } else if (value !== false && value != null) {
-      element.setAttribute(name, String(value));
+      return key;
     }
-  });
-  (vNode.children || []).forEach((child) => element.appendChild(createDOMFromVNode(child)));
-  return element;
-}
-
-function renderVNodeToRoot(root, vNode) {
-  root.innerHTML = "";
-  (vNode.children || []).forEach((child) => root.appendChild(createDOMFromVNode(child)));
-}
-
-function findVNodeByPath(vNode, path) {
-  if (!vNode) {
-    return null;
-  }
-  if (vNode.path === path) {
-    return vNode;
-  }
-  for (const child of vNode.children || []) {
-    const found = findVNodeByPath(child, path);
-    if (found) {
-      return found;
-    }
-  }
-  return null;
-}
-
-/* -------------------------------------------------------------------------- */
-/* 5. traversal utils                                                          */
-/* -------------------------------------------------------------------------- */
-
-/*
-  이 함수의 역할:
-  Virtual DOM 트리를 깊이 우선 탐색으로 순회한다.
-  입력:
-  루트 Virtual DOM
-  출력:
-  방문 순서 배열
-  왜 필요한지:
-  Virtual DOM이 일반 트리라는 점과 depth 기반 방문 순서를 UI로 설명하기 위해 필요하다.
-*/
-function traverseDFS(root) {
-  const order = [];
-  function visit(node) {
-    if (!node) {
-      return;
-    }
-    order.push({ path: node.path, label: getNodeDescriptor(node), depth: node.depth });
-    (node.children || []).forEach((child) => visit(child));
-  }
-  visit(root);
-  return order;
-}
-
-/*
-  이 함수의 역할:
-  Virtual DOM 트리를 너비 우선 탐색으로 순회한다.
-  입력:
-  루트 Virtual DOM
-  출력:
-  방문 순서 배열
-  왜 필요한지:
-  레벨 순회를 통해 같은 depth에 있는 노드가 어떻게 배치되는지 보여주기 위해 필요하다.
-*/
-function traverseBFS(root) {
-  if (!root) {
-    return [];
-  }
-  const order = [];
-  const queue = [root];
-  while (queue.length) {
-    const current = queue.shift();
-    order.push({ path: current.path, label: getNodeDescriptor(current), depth: current.depth });
-    (current.children || []).forEach((child) => queue.push(child));
-  }
-  return order;
-}
-
-/* -------------------------------------------------------------------------- */
-/* 6. diff engine                                                              */
-/* -------------------------------------------------------------------------- */
-
-function diffAttrs(oldAttrs = {}, newAttrs = {}, path, patches) {
-  Object.keys(newAttrs).forEach((name) => {
-    if (oldAttrs[name] !== newAttrs[name]) {
-      patches.push({ type: PATCH_TYPES.ATTR_SET, path, name, value: newAttrs[name] });
-    }
-  });
-  Object.keys(oldAttrs).forEach((name) => {
-    if (!(name in newAttrs)) {
-      patches.push({ type: PATCH_TYPES.ATTR_REMOVE, path, name });
-    }
+    return `${key}="${value}"`;
   });
 }
 
-function createChildKeyMap(children) {
-  const map = new Map();
-  children.forEach((child, index) => {
-    map.set(child.key || `__index_${index}`, index);
-  });
-  return map;
-}
+function renderVdomTreeNode(vnode) {
+  const nodeEl = document.createElement("div");
+  nodeEl.className = "tree-node";
 
-/*
-  이 함수의 역할:
-  두 자식 배열을 비교해 생성, 삭제, 재정렬, 하위 diff를 계산한다.
-  입력:
-  이전 자식 배열, 새 자식 배열, 부모 path, patch 배열
-  출력:
-  patch 배열에 자식 관련 patch를 추가
-  왜 필요한지:
-  React-style reconciliation의 핵심은 형제 리스트 비교이므로 별도 단계로 분리해야 patch를 명확하게 설명할 수 있다.
-*/
-function diffChildren(oldChildren, newChildren, parentPath, patches) {
-  const oldKeyMap = createChildKeyMap(oldChildren);
-  const newKeyMap = createChildKeyMap(newChildren);
-  const nextOrder = [];
+  const branch = document.createElement("div");
+  branch.className = "tree-branch";
 
-  newChildren.forEach((newChild, index) => {
-    const lookupKey = newChild.key || `__index_${index}`;
-    nextOrder.push(lookupKey);
+  const label = document.createElement("span");
+  label.className = "tree-label";
+  label.textContent = getTreeLabel(vnode);
+  branch.appendChild(label);
 
-    if (!oldKeyMap.has(lookupKey)) {
-      patches.push({
-        type: PATCH_TYPES.CREATE,
-        path: `${parentPath}-${index}`,
-        parentPath,
-        index,
-        node: newChild
-      });
-      return;
-    }
-
-    const oldIndex = oldKeyMap.get(lookupKey);
-    diff(oldChildren[oldIndex], newChild, `${parentPath}-${index}`, patches);
-  });
-
-  oldChildren.forEach((oldChild, index) => {
-    const lookupKey = oldChild.key || `__index_${index}`;
-    if (!newKeyMap.has(lookupKey)) {
-      patches.push({
-        type: PATCH_TYPES.REMOVE,
-        path: oldChild.path || `${parentPath}-${index}`,
-        parentPath,
-        index,
-        node: oldChild
-      });
-    }
-  });
-
-  const previousOrder = oldChildren.map((child, index) => child.key || `__index_${index}`);
-  if (previousOrder.length === nextOrder.length && previousOrder.join("|") !== nextOrder.join("|")) {
-    patches.push({
-      type: PATCH_TYPES.REORDER_CHILDREN,
-      path: parentPath,
-      parentPath,
-      order: nextOrder
-    });
-  }
-}
-
-/*
-  이 함수의 역할:
-  이전 Virtual DOM과 새로운 Virtual DOM을 비교해 patch 목록을 만든다.
-  입력:
-  이전 Virtual DOM, 새 Virtual DOM, 현재 path, patch 배열
-  출력:
-  patch 배열
-  왜 필요한지:
-  실제 DOM에 들어가기 전에 메모리 상에서 변경점을 계산해야 최소 변경 방식이 가능하다.
-*/
-function diff(oldNode, newNode, path = "0", patches = []) {
-  if (!oldNode && newNode) {
-    patches.push({
-      type: PATCH_TYPES.CREATE,
-      path,
-      parentPath: path.split("-").slice(0, -1).join("-") || "0",
-      index: Number(path.split("-").pop() || 0),
-      node: newNode
-    });
-    return patches;
-  }
-
-  if (oldNode && !newNode) {
-    patches.push({
-      type: PATCH_TYPES.REMOVE,
-      path,
-      parentPath: path.split("-").slice(0, -1).join("-") || "0",
-      index: Number(path.split("-").pop() || 0),
-      node: oldNode
-    });
-    return patches;
-  }
-
-  if (!oldNode || !newNode) {
-    return patches;
-  }
-
-  if (oldNode.type !== newNode.type || oldNode.tag !== newNode.tag) {
-    patches.push({ type: PATCH_TYPES.REPLACE, path, oldNode, newNode });
-    return patches;
-  }
-
-  if (oldNode.type === "text" && newNode.type === "text") {
-    if (oldNode.text !== newNode.text) {
-      patches.push({ type: PATCH_TYPES.TEXT, path, oldText: oldNode.text, newText: newNode.text });
-    }
-    return patches;
-  }
-
-  diffAttrs(oldNode.attrs, newNode.attrs, path, patches);
-  diffChildren(oldNode.children || [], newNode.children || [], path, patches);
-  return patches;
-}
-
-/* -------------------------------------------------------------------------- */
-/* 7. patch engine                                                             */
-/* -------------------------------------------------------------------------- */
-
-function getDomNodeByPath(root, path) {
-  if (path === "0") {
-    return root;
-  }
-  let current = root;
-  const segments = pathToSegments(path);
-  for (const segment of segments) {
-    const comparableChildren = getComparableChildNodes(current);
-    if (!current || !comparableChildren[segment]) {
-      return null;
-    }
-    current = comparableChildren[segment];
-  }
-  return current;
-}
-
-function applyCreatePatch(root, patch) {
-  const parent = getDomNodeByPath(root, patch.parentPath);
-  if (!parent) {
-    return;
-  }
-  const comparableChildren = getComparableChildNodes(parent);
-  const referenceNode = comparableChildren[patch.index] || null;
-  parent.insertBefore(createDOMFromVNode(patch.node), referenceNode);
-}
-
-function applyRemovePatch(root, patch) {
-  const target = getDomNodeByPath(root, patch.path);
-  if (target && target.parentNode) {
-    target.parentNode.removeChild(target);
-  }
-}
-
-function applyReplacePatch(root, patch) {
-  const target = getDomNodeByPath(root, patch.path);
-  if (target && target.parentNode) {
-    target.parentNode.replaceChild(createDOMFromVNode(patch.newNode), target);
-  }
-}
-
-function applyTextPatch(root, patch) {
-  const target = getDomNodeByPath(root, patch.path);
-  if (target) {
-    target.textContent = patch.newText;
-  }
-}
-
-function applyAttrSetPatch(root, patch) {
-  const target = getDomNodeByPath(root, patch.path);
-  if (!target || target.nodeType !== NODE_TYPE.ELEMENT) {
-    return;
-  }
-  if (patch.value === true) {
-    target.setAttribute(patch.name, "");
+  if (vnode.type === "text") {
+    const text = document.createElement("span");
+    text.className = "tree-text";
+    text.textContent = vnode.text;
+    branch.appendChild(text);
   } else {
-    target.setAttribute(patch.name, String(patch.value));
-  }
-}
-
-function applyAttrRemovePatch(root, patch) {
-  const target = getDomNodeByPath(root, patch.path);
-  if (target && target.nodeType === NODE_TYPE.ELEMENT) {
-    target.removeAttribute(patch.name);
-  }
-}
-
-function applyReorderPatch(root, patch, newVNodeRoot) {
-  const parent = getDomNodeByPath(root, patch.path);
-  const parentVNode = findVNodeByPath(newVNodeRoot, patch.path);
-  if (!parent || !parentVNode) {
-    return;
-  }
-
-  const existingChildren = getComparableChildNodes(parent);
-  const existingByKey = new Map();
-  existingChildren.forEach((child, index) => {
-    existingByKey.set(getDomKey(child, index), child);
-  });
-
-  const fragment = document.createDocumentFragment();
-  (parentVNode.children || []).forEach((childVNode, index) => {
-    const lookupKey = childVNode.key || `__index_${index}`;
-    const existingNode = existingByKey.get(lookupKey);
-    fragment.appendChild(existingNode || createDOMFromVNode(childVNode));
-  });
-
-  parent.replaceChildren(fragment);
-}
-
-/*
-  이 함수의 역할:
-  patch 배열을 실제 DOM에 순서 있게 적용한다.
-  입력:
-  실제 DOM 루트, patch 배열, 새 Virtual DOM 루트
-  출력:
-  없음. 실제 DOM이 직접 갱신된다.
-  왜 필요한지:
-  diff 결과를 실제 화면 변화로 연결하는 단계이며, Virtual DOM의 핵심 가치는 바로 여기서 드러난다.
-*/
-function applyPatches(root, patches, newVNodeRoot) {
-  const removePatches = patches
-    .filter((patch) => patch.type === PATCH_TYPES.REMOVE)
-    .sort((a, b) => getPathDepth(b.path) - getPathDepth(a.path));
-  const createPatches = patches
-    .filter((patch) => patch.type === PATCH_TYPES.CREATE)
-    .sort((a, b) => getPathDepth(a.path) - getPathDepth(b.path));
-  const updatePatches = patches.filter(
-    (patch) => ![PATCH_TYPES.CREATE, PATCH_TYPES.REMOVE, PATCH_TYPES.REORDER_CHILDREN].includes(patch.type)
-  );
-  const reorderPatches = patches.filter((patch) => patch.type === PATCH_TYPES.REORDER_CHILDREN);
-
-  removePatches.forEach((patch) => applyRemovePatch(root, patch));
-  updatePatches.forEach((patch) => {
-    switch (patch.type) {
-      case PATCH_TYPES.REPLACE:
-        applyReplacePatch(root, patch);
-        break;
-      case PATCH_TYPES.TEXT:
-        applyTextPatch(root, patch);
-        break;
-      case PATCH_TYPES.ATTR_SET:
-        applyAttrSetPatch(root, patch);
-        break;
-      case PATCH_TYPES.ATTR_REMOVE:
-        applyAttrRemovePatch(root, patch);
-        break;
-      default:
-        break;
+    const props = getTreeProps(vnode);
+    if (props.length) {
+      const propEl = document.createElement("span");
+      propEl.className = "tree-props";
+      propEl.textContent = props.join(" ");
+      branch.appendChild(propEl);
     }
-  });
-  createPatches.forEach((patch) => applyCreatePatch(root, patch));
-  reorderPatches.forEach((patch) => applyReorderPatch(root, patch, newVNodeRoot));
-}
-
-/* -------------------------------------------------------------------------- */
-/* 8. history manager                                                          */
-/* -------------------------------------------------------------------------- */
-
-function serializeVNodeChildrenToHTML(vNode) {
-  const wrapper = document.createElement("div");
-  (vNode.children || []).forEach((child) => wrapper.appendChild(createDOMFromVNode(child)));
-  return wrapper.innerHTML;
-}
-
-function createHistorySnapshot(label, description, vNode, patches) {
-  return {
-    id: Date.now() + Math.random(),
-    label,
-    description,
-    vNode: cloneValue(vNode),
-    patches: cloneValue(patches),
-    timestamp: new Date().toLocaleTimeString("ko-KR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    })
-  };
-}
-
-/*
-  이 함수의 역할:
-  현재 Virtual DOM 상태를 history 배열에 push하고 currentIndex를 갱신한다.
-  입력:
-  상태 라벨, 상태 설명, Virtual DOM, patch 배열
-  출력:
-  없음. history와 currentIndex가 갱신된다.
-  왜 필요한지:
-  patch 결과를 이전 상태와 비교하고 되돌리려면 시점별 스냅샷이 필요하다.
-*/
-function pushHistory(label, description, vNode, patches) {
-  if (state.manual.currentHistoryIndex < state.manual.history.length - 1) {
-    state.manual.history = state.manual.history.slice(0, state.manual.currentHistoryIndex + 1);
-  }
-  state.manual.history.push(createHistorySnapshot(label, description, vNode, patches));
-  state.manual.currentHistoryIndex = state.manual.history.length - 1;
-}
-
-function restoreSnapshot(snapshot) {
-  if (!snapshot) {
-    return;
-  }
-  state.manual.realVNode = cloneValue(snapshot.vNode);
-  state.manual.testVNode = cloneValue(snapshot.vNode);
-  state.manual.patches = cloneValue(snapshot.patches || []);
-  renderVNodeToRoot(state.ui.realDomRoot, state.manual.realVNode);
-  renderVNodeToRoot(state.ui.testDomRoot, state.manual.testVNode);
-  syncSourceEditorFromTest();
-  setManualStatus(snapshot.label, snapshot.description);
-  renderManualPanels();
-}
-
-/*
-  이 함수의 역할:
-  history 인덱스를 하나 뒤로 이동시키고 해당 상태를 복원한다.
-  입력:
-  없음
-  출력:
-  없음
-  왜 필요한지:
-  diff 이후 이전 Virtual DOM 상태로 안전하게 되돌리는 검증 흐름이 필요하다.
-*/
-function goBack() {
-  if (state.manual.currentHistoryIndex <= 0) {
-    return;
-  }
-  state.manual.currentHistoryIndex -= 1;
-  restoreSnapshot(state.manual.history[state.manual.currentHistoryIndex]);
-}
-
-/*
-  이 함수의 역할:
-  history 인덱스를 하나 앞으로 이동시키고 해당 상태를 복원한다.
-  입력:
-  없음
-  출력:
-  없음
-  왜 필요한지:
-  undo 이후 다시 최신 상태로 이동하는 redo 흐름을 검증하기 위해 필요하다.
-*/
-function goForward() {
-  if (state.manual.currentHistoryIndex >= state.manual.history.length - 1) {
-    return;
-  }
-  state.manual.currentHistoryIndex += 1;
-  restoreSnapshot(state.manual.history[state.manual.currentHistoryIndex]);
-}
-
-/* -------------------------------------------------------------------------- */
-/* 9. benchmark model                                                          */
-/* -------------------------------------------------------------------------- */
-
-function createBenchmarkItem(index) {
-  const basePrice = 119000 + (index % 7) * 9000;
-  return {
-    id: `node-${index + 1}`,
-    name: `Node ${String(index + 1).padStart(3, "0")}`,
-    lane: `lane-${(index % 4) + 1}`,
-    basePrice,
-    price: basePrice,
-    message: `watch ${12 + (index % 5)}ms`,
-    hot: index < 4,
-    pressure: ["low", "mid", "high"][index % 3],
-    stock: 120 - (index % 10) * 7
-  };
-}
-
-function buildAlerts(model, mode) {
-  const alerts = [
-    { id: "queue", text: `queue depth ${model.queueDepth}` },
-    { id: "mode", text: `${MODE_LABELS[mode]} stream active` }
-  ];
-
-  if (model.phase === "pressure" || model.phase === "peak") {
-    alerts.push({ id: "pressure", text: `${model.phase} phase: patch pressure rising` });
   }
 
-  if (model.tick % 5 === 0) {
-    alerts.push({ id: "gc", text: `heap scan ${20 + (model.tick % 9)}ms window` });
-  }
+  nodeEl.appendChild(branch);
 
-  return alerts;
-}
-
-function createBenchmarkModel(itemCount) {
-  const model = {
-    tick: 0,
-    phase: BENCHMARK_PHASES[0],
-    queueDepth: 42,
-    throughput: state.benchmark.config.frequency,
-    items: Array.from({ length: itemCount }, (_, index) => createBenchmarkItem(index)),
-    alerts: [],
-    summary: {
-      patchHint: "idle",
-      redrawHint: "idle"
-    }
-  };
-  model.alerts = buildAlerts(model, state.benchmark.config.mode);
-  return model;
-}
-
-function mutateItemText(item, tick, index) {
-  const priceDelta = (((tick + index) % 5) - 2) * 1000;
-  item.price = item.basePrice + priceDelta;
-  item.message = `watch ${10 + ((tick * 3 + index) % 17)}ms`;
-  item.stock = Math.max(4, item.stock - ((tick + index) % 3));
-}
-
-function mutateItemAttrs(item, tick, index) {
-  item.hot = (tick + index) % 11 === 0 || (tick + index) % 17 === 0;
-  item.pressure = ["low", "mid", "high", "burst"][(tick + index) % 4];
-}
-
-function mutateBenchmarkModel(previousModel, tick, mode) {
-  const next = cloneValue(previousModel);
-  const length = next.items.length;
-  const focusSize = Math.max(1, Math.min(length, Math.round(length * state.benchmark.config.mutationRatio)));
-  const focusStart = (tick * 3) % Math.max(length, 1);
-  const focusIndexes = new Set(
-    Array.from({ length: focusSize }, (_, offset) => (focusStart + offset) % Math.max(length, 1))
-  );
-
-  next.tick = tick;
-  next.phase = BENCHMARK_PHASES[Math.floor(tick / 3) % BENCHMARK_PHASES.length];
-  next.queueDepth = 40 + ((tick * 17) % 320);
-  next.throughput = state.benchmark.config.frequency;
-
-  next.items.forEach((item, index) => {
-    if ((mode === "text" || mode === "mixed") && focusIndexes.has(index)) {
-      mutateItemText(item, tick, index);
-    }
-    if ((mode === "attr" || mode === "mixed") && focusIndexes.has(index)) {
-      mutateItemAttrs(item, tick, index);
+  (vnode.children || []).forEach((child) => {
+    const childrenEl = nodeEl.querySelector(".tree-children") || document.createElement("div");
+    childrenEl.className = "tree-children";
+    childrenEl.appendChild(renderVdomTreeNode(child));
+    if (!childrenEl.parentNode) {
+      nodeEl.appendChild(childrenEl);
     }
   });
 
-  if ((mode === "list" || mode === "mixed") && tick % state.benchmark.config.reorderEvery === 0) {
-    const shift = tick % Math.max(1, Math.min(next.items.length, 6));
-    next.items = rotateArray(next.items, shift);
-  }
-
-  next.alerts = buildAlerts(next, mode);
-  next.summary.patchHint = next.phase === "peak" ? "many small patches" : "incremental update";
-  next.summary.redrawHint = next.phase === "peak" ? "imperative walk under pressure" : "manual DOM walk";
-  return next;
+  return nodeEl;
 }
 
-function applyImperativeBenchmarkUpdate(root, model) {
-  const shell = root.querySelector(".runtime-shell");
-  const cards = Array.from(root.querySelectorAll(".runtime-node"));
-  const layoutReadEvery = state.benchmark.config.layoutReadEvery;
-  const rootLayoutReads = state.benchmark.config.rootLayoutReads;
-  if (!shell || cards.length !== model.items.length) {
-    root.innerHTML = renderBenchmarkHTML(model);
+function renderVdomTree(container, rootVdom) {
+  container.innerHTML = "";
+  if (!rootVdom || !rootVdom.children || !rootVdom.children.length) {
+    container.innerHTML = "<div class=\"tree-text\">빈 트리</div>";
     return;
   }
 
-  shell.dataset.phase = model.phase;
-  shell.dataset.tick = String(model.tick);
-  shell.querySelector(".runtime-shell__title").textContent = `${model.phase} stream`;
-  shell.querySelector(".runtime-shell__header .runtime-badge").textContent = `tick ${model.tick}`;
-  shell.querySelector(".runtime-dashboard__hero h3").textContent = model.summary.redrawHint;
-  shell.querySelector(".runtime-dashboard__hero p").textContent = `queue depth ${model.queueDepth} / throughput ${model.throughput} tps`;
-
-  const kpis = shell.querySelectorAll(".runtime-kpi strong");
-  if (kpis[0]) {
-    kpis[0].textContent = String(model.queueDepth);
-  }
-  if (kpis[1]) {
-    kpis[1].textContent = String(model.items.length);
-  }
-  if (kpis[2]) {
-    kpis[2].textContent = model.phase;
-  }
-
-  const alertsRoot = shell.querySelector(".runtime-alerts");
-  alertsRoot.innerHTML = model.alerts
-    .map((alert) => `<div class="runtime-alert" data-key="${escapeHTML(alert.id)}">${escapeHTML(alert.text)}</div>`)
-    .join("");
-
-  model.items.forEach((item, index) => {
-    const card = cards[index];
-    card.dataset.key = item.id;
-    card.dataset.hot = item.hot ? "true" : "false";
-    card.dataset.pressure = item.pressure;
-    card.querySelector(".runtime-node__head strong").textContent = item.name;
-    card.querySelector(".runtime-node__head .runtime-badge").textContent = item.lane;
-    card.querySelector("p").textContent = item.message;
-    const metaNodes = card.querySelectorAll(".runtime-node__meta > *");
-    metaNodes[0].textContent = `₩${item.price.toLocaleString("ko-KR")}`;
-    metaNodes[1].textContent = `${item.stock} left`;
-    const badges = card.querySelectorAll(".runtime-node__badges .runtime-badge");
-    badges[0].textContent = item.pressure;
-    badges[1].textContent = item.hot ? "hot" : "steady";
-    if (layoutReadEvery > 0 && index % layoutReadEvery === 0) {
-      void card.offsetHeight;
-    }
-  });
-
-  for (let index = 0; index < rootLayoutReads; index += 1) {
-    void root.offsetHeight;
-  }
-}
-
-function renderBenchmarkHTML(model) {
-  const alertHTML = model.alerts
-    .map((alert) => `<div class="runtime-alert" data-key="${escapeHTML(alert.id)}">${escapeHTML(alert.text)}</div>`)
-    .join("");
-
-  const listHTML = model.items
-    .map(
-      (item) => `
-        <article class="runtime-node" data-key="${escapeHTML(item.id)}" data-hot="${item.hot ? "true" : "false"}" data-pressure="${escapeHTML(item.pressure)}">
-          <div class="runtime-node__head">
-            <strong>${escapeHTML(item.name)}</strong>
-            <span class="runtime-badge">${escapeHTML(item.lane)}</span>
-          </div>
-          <p>${escapeHTML(item.message)}</p>
-          <div class="runtime-node__meta">
-            <span>₩${escapeHTML(item.price.toLocaleString("ko-KR"))}</span>
-            <strong>${escapeHTML(String(item.stock))} left</strong>
-          </div>
-          <div class="runtime-node__badges">
-            <span class="runtime-badge">${escapeHTML(item.pressure)}</span>
-            <span class="runtime-badge">${item.hot ? "hot" : "steady"}</span>
-          </div>
-        </article>
-      `
-    )
-    .join("");
-
-  return `
-    <div class="runtime-shell" data-phase="${escapeHTML(model.phase)}" data-tick="${escapeHTML(String(model.tick))}">
-      <div class="runtime-shell__header">
-        <strong class="runtime-shell__title">${escapeHTML(model.phase)} stream</strong>
-        <span class="runtime-badge">tick ${escapeHTML(String(model.tick))}</span>
-      </div>
-      <div class="runtime-dashboard">
-        <div class="runtime-dashboard__hero">
-          <h3>${escapeHTML(model.summary.patchHint)}</h3>
-          <p>queue depth ${escapeHTML(String(model.queueDepth))} / throughput ${escapeHTML(String(model.throughput))} tps</p>
-        </div>
-        <div class="runtime-kpis">
-          <div class="runtime-kpi"><span>queue</span><strong>${escapeHTML(String(model.queueDepth))}</strong></div>
-          <div class="runtime-kpi"><span>nodes</span><strong>${escapeHTML(String(model.items.length))}</strong></div>
-          <div class="runtime-kpi"><span>phase</span><strong>${escapeHTML(model.phase)}</strong></div>
-        </div>
-        <div class="runtime-alerts">${alertHTML}</div>
-        <div class="runtime-list">${listHTML}</div>
-      </div>
-    </div>
-  `;
-}
-
-function renderBenchmarkVNode(model) {
-  const root = createRootContainer();
-  const alertNodes = model.alerts.map((alert) =>
-    createElementVNode("div", { class: "runtime-alert", "data-key": alert.id }, [alert.text])
-  );
-
-  const listNodes = model.items.map((item) =>
-    createElementVNode("article", {
-      class: "runtime-node",
-      "data-key": item.id,
-      "data-hot": item.hot ? "true" : "false",
-      "data-pressure": item.pressure
-    }, [
-      createElementVNode("div", { class: "runtime-node__head" }, [
-        createElementVNode("strong", {}, [item.name]),
-        createElementVNode("span", { class: "runtime-badge" }, [item.lane])
-      ]),
-      createElementVNode("p", {}, [item.message]),
-      createElementVNode("div", { class: "runtime-node__meta" }, [
-        createElementVNode("span", {}, [`₩${item.price.toLocaleString("ko-KR")}`]),
-        createElementVNode("strong", {}, [`${item.stock} left`])
-      ]),
-      createElementVNode("div", { class: "runtime-node__badges" }, [
-        createElementVNode("span", { class: "runtime-badge" }, [item.pressure]),
-        createElementVNode("span", { class: "runtime-badge" }, [item.hot ? "hot" : "steady"])
-      ])
-    ])
-  );
-
-  root.children.push(
-    createElementVNode("div", {
-      class: "runtime-shell",
-      "data-phase": model.phase,
-      "data-tick": String(model.tick)
-    }, [
-      createElementVNode("div", { class: "runtime-shell__header" }, [
-        createElementVNode("strong", { class: "runtime-shell__title" }, [`${model.phase} stream`]),
-        createElementVNode("span", { class: "runtime-badge" }, [`tick ${model.tick}`])
-      ]),
-      createElementVNode("div", { class: "runtime-dashboard" }, [
-        createElementVNode("div", { class: "runtime-dashboard__hero" }, [
-          createElementVNode("h3", {}, [model.summary.patchHint]),
-          createElementVNode("p", {}, [`queue depth ${model.queueDepth} / throughput ${model.throughput} tps`])
-        ]),
-        createElementVNode("div", { class: "runtime-kpis" }, [
-          createElementVNode("div", { class: "runtime-kpi" }, [
-            createElementVNode("span", {}, ["queue"]),
-            createElementVNode("strong", {}, [String(model.queueDepth)])
-          ]),
-          createElementVNode("div", { class: "runtime-kpi" }, [
-            createElementVNode("span", {}, ["nodes"]),
-            createElementVNode("strong", {}, [String(model.items.length)])
-          ]),
-          createElementVNode("div", { class: "runtime-kpi" }, [
-            createElementVNode("span", {}, ["phase"]),
-            createElementVNode("strong", {}, [model.phase])
-          ])
-        ]),
-        createElementVNode("div", { class: "runtime-alerts" }, alertNodes),
-        createElementVNode("div", { class: "runtime-list" }, listNodes)
-      ])
-    ])
-  );
-
-  return normalizeVNodePaths(root);
-}
-
-function syncBenchmarkControls() {
-  state.ui.mutationModeSelect.value = state.benchmark.config.mode;
-  state.ui.frequencyRange.value = String(state.benchmark.config.frequency);
-  state.ui.frequencyValue.textContent = String(state.benchmark.config.frequency);
-  state.ui.itemCountRange.value = String(state.benchmark.config.itemCount);
-  state.ui.itemCountValue.textContent = `${state.benchmark.config.itemCount} nodes`;
-  state.ui.mutationRatioRange.value = String(Math.round(state.benchmark.config.mutationRatio * 100));
-  state.ui.mutationRatioValue.textContent = getMutationScopeText(
-    state.benchmark.config.itemCount,
-    state.benchmark.config.mutationRatio
-  );
-}
-
-function renderBenchmarkPresetState() {
-  const preset = getCurrentPresetMeta();
-  const advisory = getLoadAdvisory();
-
-  state.ui.presetLabelChip.textContent = preset.label;
-  state.ui.loadReasonChip.textContent = preset.description || advisory.reason;
-  state.ui.loadWarningChip.textContent = advisory.label;
-  state.ui.loadWarningChip.className = `chip ${advisory.chipClass}`;
-}
-
-function applyBenchmarkPreset(presetKey) {
-  const preset = getPresetDefinition(presetKey);
-  if (!preset) {
-    return;
-  }
-
-  Object.assign(state.benchmark.config, cloneValue(preset), { presetKey });
-  syncBenchmarkControls();
-  renderBenchmarkPresetState();
-  resetBenchmark();
-}
-
-function markBenchmarkConfigCustom() {
-  state.benchmark.config.presetKey = "custom";
-  renderBenchmarkPresetState();
-}
-
-/* -------------------------------------------------------------------------- */
-/* 10. benchmark engine                                                        */
-/* -------------------------------------------------------------------------- */
-
-function clearBenchmarkTimer() {
-  if (state.benchmark.timer) {
-    window.clearTimeout(state.benchmark.timer);
-    state.benchmark.timer = null;
-  }
-}
-
-function clearBenchmarkRefreshTimer() {
-  if (state.benchmark.refreshTimer) {
-    window.clearTimeout(state.benchmark.refreshTimer);
-    state.benchmark.refreshTimer = null;
-  }
-}
-
-function scheduleGraphDraw() {
-  state.graph.dirty = true;
-  if (state.graph.frame) {
-    return;
-  }
-
-  state.graph.frame = window.requestAnimationFrame(() => {
-    state.graph.frame = null;
-    if (!state.graph.dirty) {
-      return;
-    }
-    state.graph.dirty = false;
-    drawGraph();
+  rootVdom.children.forEach((child) => {
+    container.appendChild(renderVdomTreeNode(child));
   });
 }
 
-function flushBenchmarkUi() {
-  renderBenchmarkMetrics();
-  renderBenchmarkFeed();
-  renderPerformancePanel();
-  renderExplanationPanel();
-  scheduleGraphDraw();
+function describePatchHtml(patch) {
+  const className = PATCH_CLASS_MAP[patch.type] || "props";
+  return `<span class="${className}">${patch.type}</span> path <code>${formatPath(patch.path)}</code> ${escapeHtml(VDOMEngine.describePatch(patch))}`;
 }
 
-function scheduleBenchmarkUiRefresh() {
-  if (state.benchmark.refreshTimer) {
-    return;
-  }
-
-  state.benchmark.refreshTimer = window.setTimeout(() => {
-    state.benchmark.refreshTimer = null;
-    flushBenchmarkUi();
-  }, BENCHMARK_UI_REFRESH_MS);
-}
-
-function updateBenchmarkStatusText(reason = state.benchmark.lastStopReason || "streaming") {
-  const requestedHz = state.benchmark.config.frequency;
-  const effectiveHz = state.benchmark.effectiveFrequency || requestedHz;
-  const advisory = getLoadAdvisory();
-
-  if (reason === "timeout") {
-    state.ui.benchmarkStatus.textContent = "cooldown";
-    state.ui.streamHint.textContent = `브라우저 클릭 응답성을 지키기 위해 ${BENCHMARK_MAX_CONTINUOUS_MS / 1000}초 연속 실행 후 자동 중지했습니다.`;
-    return;
-  }
-
-  if (reason === "hidden") {
-    state.ui.benchmarkStatus.textContent = "paused";
-    state.ui.streamHint.textContent = "숨겨진 탭에서 불필요한 부하를 막기 위해 스트림을 자동 중지했습니다.";
-    return;
-  }
-
-  if (reason === "burst-done") {
-    state.ui.benchmarkStatus.textContent = "burst done";
-    state.ui.streamHint.textContent = `${BENCHMARK_BURST_TICKS}회의 버스트를 완료했습니다. 그래프와 평균값을 비교해보세요.`;
-    return;
-  }
-
-  if (reason === "burst") {
-    state.ui.benchmarkStatus.textContent = "bursting";
-    state.ui.streamHint.textContent = `버스트를 분할 실행 중입니다. 현재 부하는 ${advisory.label} 단계입니다.`;
-    return;
-  }
-
-  if (!state.benchmark.running) {
-    state.ui.benchmarkStatus.textContent = "idle";
-    state.ui.streamHint.textContent = "연속 시작을 누르면 같은 상태 변화가 두 런타임에 동시에 주입됩니다.";
-    return;
-  }
-
-  if (state.benchmark.protectionState === "throttled" && effectiveHz < requestedHz) {
-    state.ui.benchmarkStatus.textContent = "protected";
-    state.ui.streamHint.textContent = `요청 ${requestedHz} ticks/sec, 현재는 UI 보호를 위해 약 ${effectiveHz.toFixed(1)} ticks/sec로 자동 감속 중입니다.`;
-    return;
-  }
-
-  state.ui.benchmarkStatus.textContent = "streaming";
-  state.ui.streamHint.textContent = `${requestedHz} ticks/sec로 ${MODE_LABELS[state.benchmark.config.mode]} mutation을 반복 주입 중입니다. 현재 부하는 ${advisory.label} 단계입니다.`;
-}
-
-function stopBenchmark(reason = "manual") {
-  state.benchmark.running = false;
-  state.benchmark.burstRemaining = 0;
-  state.benchmark.lastStopReason = reason;
-  clearBenchmarkTimer();
-  clearBenchmarkRefreshTimer();
-  updateBenchmarkStatusText(reason);
-}
-
-function setupBenchmarkObservers() {
-  Object.values(state.benchmark.observers).forEach((observer) => observer && observer.disconnect());
-
-  state.benchmark.observers.vdom = new MutationObserver((records) => {
-    state.benchmark.mutationTotals.vdom += records.length;
-    scheduleBenchmarkUiRefresh();
+function summarizePatches(patches) {
+  const counts = Object.fromEntries(PATCH_SUMMARY_TYPES.map(([type]) => [type, 0]));
+  patches.forEach((patch) => {
+    counts[patch.type] = (counts[patch.type] || 0) + 1;
   });
+  return counts;
+}
 
-  state.benchmark.observers.redraw = new MutationObserver((records) => {
-    state.benchmark.mutationTotals.redraw += records.length;
-    scheduleBenchmarkUiRefresh();
-  });
+function renderPatchSummary(patches) {
+  const counts = summarizePatches(patches);
+  elements.patchSummary.innerHTML = "";
 
-  state.benchmark.observers.vdom.observe(state.ui.benchmarkVdomRoot, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    characterData: true
-  });
-
-  state.benchmark.observers.redraw.observe(state.ui.benchmarkDirectRoot, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    characterData: true
+  PATCH_SUMMARY_TYPES.forEach(([type, className]) => {
+    const pill = document.createElement("span");
+    pill.className = `patch-pill ${className}`;
+    pill.textContent = `${type} ${counts[type] || 0}`;
+    elements.patchSummary.appendChild(pill);
   });
 }
 
-function recordBenchmarkEntry(entry) {
-  state.benchmark.feed.unshift(entry);
-  state.benchmark.feed = state.benchmark.feed.slice(0, 18);
-}
-
-function runBenchmarkTick() {
-  const nextTick = state.benchmark.tick + 1;
-  const nextModel = mutateBenchmarkModel(state.benchmark.model, nextTick, state.benchmark.config.mode);
-  const nextVNode = renderBenchmarkVNode(nextModel);
-
-  const vdomStart = performance.now();
-  const patches = diff(state.benchmark.vdomVNode, nextVNode, "0", []);
-  applyPatches(state.ui.benchmarkVdomRoot, patches, nextVNode);
-  const vdomDuration = performance.now() - vdomStart;
-
-  const redrawStart = performance.now();
-  applyImperativeBenchmarkUpdate(state.ui.benchmarkDirectRoot, nextModel);
-  const redrawDuration = performance.now() - redrawStart;
-
-  state.benchmark.tick = nextTick;
-  state.benchmark.model = nextModel;
-  state.benchmark.vdomVNode = nextVNode;
-  state.benchmark.latestPatchCount = patches.length;
-  state.benchmark.latestNodeCount = countNodes(nextVNode);
-
-  state.benchmark.series.vdom.push(vdomDuration);
-  state.benchmark.series.redraw.push(redrawDuration);
-  state.benchmark.series.patch.push(patches.length);
-  state.benchmark.series.delta.push(redrawDuration - vdomDuration);
-
-  trimSeries(state.benchmark.series.vdom);
-  trimSeries(state.benchmark.series.redraw);
-  trimSeries(state.benchmark.series.patch);
-  trimSeries(state.benchmark.series.delta);
-
-  recordBenchmarkEntry({
-    tick: nextTick,
-    phase: nextModel.phase,
-    mode: state.benchmark.config.mode,
-    vdom: vdomDuration,
-    redraw: redrawDuration,
-    patchCount: patches.length,
-    delta: redrawDuration - vdomDuration
-  });
-
-  scheduleBenchmarkUiRefresh();
-}
-
-function getBenchmarkScheduledDelay() {
-  const baseDelay = 1000 / Math.max(1, state.benchmark.config.frequency);
-  const guardedDelay = state.benchmark.lastTickCost > 0
-    ? state.benchmark.lastTickCost / BENCHMARK_TARGET_UTILIZATION
-    : 0;
-
-  return Math.max(BENCHMARK_MIN_DELAY_MS, baseDelay, guardedDelay);
-}
-
-function scheduleNextBenchmarkTick() {
-  if (!state.benchmark.running) {
+function renderPatchLog(patches) {
+  elements.patchLog.innerHTML = "";
+  if (!patches.length) {
+    elements.patchLog.innerHTML = "<li>변경점이 없습니다. 실제 발행본 DOM 패치도 발생하지 않았습니다.</li>";
     return;
   }
 
-  const elapsed = performance.now() - state.benchmark.runStartedAt;
-  if (elapsed >= BENCHMARK_MAX_CONTINUOUS_MS) {
-    stopBenchmark("timeout");
-    return;
-  }
-
-  const delay = getBenchmarkScheduledDelay();
-  const requestedDelay = 1000 / Math.max(1, state.benchmark.config.frequency);
-  state.benchmark.effectiveFrequency = 1000 / delay;
-  state.benchmark.protectionState = delay > requestedDelay * 1.1 ? "throttled" : "stable";
-  updateBenchmarkStatusText();
-
-  state.benchmark.timer = window.setTimeout(() => {
-    state.benchmark.timer = null;
-    if (!state.benchmark.running) {
-      return;
-    }
-
-    const tickStartedAt = performance.now();
-    runBenchmarkTick();
-    state.benchmark.lastTickCost = performance.now() - tickStartedAt;
-    scheduleNextBenchmarkTick();
-  }, delay);
-}
-
-function startBenchmark() {
-  if (state.benchmark.running) {
-    clearBenchmarkTimer();
-  }
-
-  state.benchmark.running = true;
-  state.benchmark.runStartedAt = performance.now();
-  state.benchmark.protectionState = "stable";
-  state.benchmark.lastStopReason = "streaming";
-  updateBenchmarkStatusText();
-  scheduleNextBenchmarkTick();
-}
-
-function runBenchmarkBurst() {
-  stopBenchmark();
-  state.benchmark.burstRemaining = BENCHMARK_BURST_TICKS;
-  updateBenchmarkStatusText("burst");
-
-  function stepBurst() {
-    if (state.benchmark.burstRemaining <= 0) {
-      state.benchmark.burstRemaining = 0;
-      state.benchmark.lastStopReason = "burst-done";
-      state.ui.benchmarkStatus.textContent = "burst done";
-      state.ui.streamHint.textContent = `${BENCHMARK_BURST_TICKS}회의 버스트를 완료했습니다. 그래프와 평균값을 비교해보세요.`;
-      flushBenchmarkUi();
-      return;
-    }
-
-    const chunkSize = Math.min(3, state.benchmark.burstRemaining);
-    for (let index = 0; index < chunkSize; index += 1) {
-      runBenchmarkTick();
-    }
-    state.benchmark.burstRemaining -= chunkSize;
-    state.benchmark.timer = window.setTimeout(stepBurst, 0);
-  }
-
-  stepBurst();
-}
-
-function resetBenchmark() {
-  stopBenchmark();
-  syncBenchmarkControls();
-  renderBenchmarkPresetState();
-
-  state.benchmark.tick = 0;
-  state.benchmark.series = { vdom: [], redraw: [], patch: [], delta: [] };
-  state.benchmark.feed = [];
-  state.benchmark.mutationTotals = { vdom: 0, redraw: 0 };
-  state.benchmark.latestPatchCount = 0;
-  state.benchmark.lastTickCost = 0;
-  state.benchmark.effectiveFrequency = state.benchmark.config.frequency;
-  state.benchmark.protectionState = "stable";
-  state.benchmark.runStartedAt = 0;
-  state.benchmark.burstRemaining = 0;
-  state.benchmark.lastStopReason = "manual";
-
-  state.benchmark.model = createBenchmarkModel(state.benchmark.config.itemCount);
-  state.benchmark.vdomVNode = renderBenchmarkVNode(state.benchmark.model);
-  state.benchmark.latestNodeCount = countNodes(state.benchmark.vdomVNode);
-
-  renderVNodeToRoot(state.ui.benchmarkVdomRoot, state.benchmark.vdomVNode);
-  state.ui.benchmarkDirectRoot.innerHTML = renderBenchmarkHTML(state.benchmark.model);
-
-  setupBenchmarkObservers();
-  flushBenchmarkUi();
-}
-
-/* -------------------------------------------------------------------------- */
-/* 11. manual patch lab                                                        */
-/* -------------------------------------------------------------------------- */
-
-function syncSourceEditorFromTest() {
-  state.ui.sourceEditor.value = serializeHTML(state.ui.testDomRoot);
-}
-
-function syncTestFromSourceEditor() {
-  const rawHTML = state.ui.sourceEditor.value.trim();
-  const error = renderHTMLIntoTarget(state.ui.testDomRoot, rawHTML);
-  state.ui.editorMessage.textContent = error
-    ? `HTML 파서 경고: ${error.message}`
-    : "소스 에디터의 HTML을 테스트 영역에 반영했습니다.";
-}
-
-function formatPatchDetail(patch) {
-  switch (patch.type) {
-    case PATCH_TYPES.CREATE:
-      return `새 노드 ${getNodeDescriptor(patch.node)} 생성`;
-    case PATCH_TYPES.REMOVE:
-      return `기존 노드 ${getNodeDescriptor(patch.node)} 제거`;
-    case PATCH_TYPES.REPLACE:
-      return `${getNodeDescriptor(patch.oldNode)} -> ${getNodeDescriptor(patch.newNode)} 교체`;
-    case PATCH_TYPES.TEXT:
-      return `"${sanitizeText(patch.oldText)}" -> "${sanitizeText(patch.newText)}"`;
-    case PATCH_TYPES.ATTR_SET:
-      return `속성 ${patch.name} = "${patch.value}" 설정`;
-    case PATCH_TYPES.ATTR_REMOVE:
-      return `속성 ${patch.name} 제거`;
-    case PATCH_TYPES.REORDER_CHILDREN:
-      return "형제 노드 순서 변경";
-    default:
-      return "변경 없음";
-  }
-}
-
-function renderPatchLog() {
-  const panel = state.ui.diffLogPanel;
-  panel.innerHTML = "";
-
-  if (!state.manual.patches.length) {
-    panel.innerHTML = `
-      <div class="log-item">
-        <div class="log-item__head">
-          <span class="patch-badge" data-type="TEXT">NO-OP</span>
-          <strong>변경 없음</strong>
-        </div>
-        <p>이전 Virtual DOM과 테스트 영역 Virtual DOM이 동일합니다.</p>
-      </div>
-    `;
-    return;
-  }
-
-  state.manual.patches.forEach((patch, index) => {
-    const item = document.createElement("div");
-    item.className = "log-item";
-    item.innerHTML = `
-      <div class="log-item__head">
-        <span class="patch-badge" data-type="${patch.type}">${patch.type}</span>
-        <strong>#${index + 1}</strong>
-      </div>
-      <p>${escapeHTML(formatPatchDetail(patch))}</p>
-    `;
-    panel.appendChild(item);
+  patches.forEach((patch) => {
+    const li = document.createElement("li");
+    li.innerHTML = describePatchHtml(patch);
+    elements.patchLog.appendChild(li);
   });
 }
 
-function renderHistoryPanel() {
-  const panel = state.ui.historyPanel;
-  panel.innerHTML = "";
-
-  state.manual.history.forEach((entry, index) => {
+function renderHistoryRail() {
+  elements.historyRail.innerHTML = "";
+  state.history.forEach((entry, index) => {
+    const li = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `history-card ${index === state.manual.currentHistoryIndex ? "is-active" : ""}`;
-    button.dataset.historyIndex = String(index);
+    button.className = `history-button${index === state.historyIndex ? " active" : ""}`;
     button.innerHTML = `
-      <div class="history-card__top">
-        <span class="history-card__title">${escapeHTML(entry.label)}</span>
-        <span class="chip chip--slate">${index}</span>
-      </div>
-      <div class="history-card__meta">${escapeHTML(entry.timestamp)}</div>
-      <p>${escapeHTML(entry.description)}</p>
+      <strong>Version ${index + 1} · ${entry.label}</strong>
+      <span class="history-caption">${entry.timeLabel} · patches ${entry.patchCount} · nodes ${entry.nodeCount}</span>
     `;
-    panel.appendChild(button);
+    button.addEventListener("click", () => restoreFromHistory(index));
+    li.appendChild(button);
+    elements.historyRail.appendChild(li);
   });
 }
 
-function renderTreeNode(vNode) {
-  const fragment = state.ui.treeNodeTemplate.content.cloneNode(true);
-  const wrapper = fragment.querySelector(".tree-node");
-  wrapper.style.marginLeft = `${vNode.depth * 14}px`;
-  fragment.querySelector(".tree-node__tag").textContent = getNodeDescriptor(vNode);
-  fragment.querySelector(".tree-node__path").textContent = vNode.path;
-  fragment.querySelector(".tree-node__meta").textContent = getReadableNodeSummary(vNode);
-  return fragment;
+function updateViews(nextVdom = state.currentVdom, patches = [], publishTime = null) {
+  elements.currentVdomView.textContent = JSON.stringify(state.currentVdom, null, 2);
+  elements.nextVdomView.textContent = JSON.stringify(nextVdom, null, 2);
+  renderVdomTree(elements.currentVdomTree, state.currentVdom);
+  renderVdomTree(elements.nextVdomTree, nextVdom);
+  elements.patchCountView.textContent = String(patches.length);
+  elements.nodeCountView.textContent = String(countDisplayNodes(state.currentVdom));
+  elements.historyIndexView.textContent = `${state.historyIndex + 1} / ${state.history.length}`;
+  elements.publishTimeView.textContent = publishTime || state.history[state.historyIndex]?.timeLabel || "--:--";
+  elements.publishedStamp.textContent = `Version ${state.historyIndex + 1}`;
+  elements.undoButton.disabled = state.historyIndex === 0;
+  elements.redoButton.disabled = state.historyIndex >= state.history.length - 1;
+  renderPatchSummary(patches);
+  renderHistoryRail();
 }
 
-function renderTreePanel() {
-  const panel = state.ui.treePanel;
-  panel.innerHTML = "";
-  const entries = traverseDFS(state.manual.realVNode);
-  const MAX_VISIBLE = 20;
+function syncTestFromEditor() {
+  const nextVdom = sourceToVdom(elements.htmlEditor.value);
+  renderRoot(elements.testRoot, nextVdom);
+  elements.nextVdomView.textContent = JSON.stringify(nextVdom, null, 2);
+  renderVdomTree(elements.nextVdomTree, nextVdom);
+  return nextVdom;
+}
 
-  entries.forEach((entry, index) => {
-    if (index >= MAX_VISIBLE && !state.ui.treePanelExpanded) return;
-    const node = findVNodeByPath(state.manual.realVNode, entry.path);
-    if (node) {
-      panel.appendChild(renderTreeNode(node));
-    }
-  });
+function createHistoryEntry(vdom, label, patchCount) {
+  return {
+    vdom: cloneData(vdom),
+    label,
+    patchCount,
+    nodeCount: countDisplayNodes(vdom),
+    timeLabel: nowLabel()
+  };
+}
 
-  if (entries.length > MAX_VISIBLE) {
-    const btn = document.createElement("button");
-    btn.className = "button button--ghost";
-    btn.style.width = "100%";
-    btn.style.marginTop = "8px";
-    if (state.ui.treePanelExpanded) {
-      btn.textContent = "접기 (Show Less)";
-      btn.onclick = () => {
-        state.ui.treePanelExpanded = false;
-        renderTreePanel();
-      };
-    } else {
-      btn.textContent = `전체 보기 (${entries.length - MAX_VISIBLE}개 더보기)`;
-      btn.onclick = () => {
-        state.ui.treePanelExpanded = true;
-        renderTreePanel();
-      };
-    }
-    panel.appendChild(btn);
+function pushHistory(vdom, label, patchCount) {
+  state.history = state.history.slice(0, state.historyIndex + 1);
+  state.history.push(createHistoryEntry(vdom, label, patchCount));
+  state.historyIndex = state.history.length - 1;
+}
+
+function restoreFromHistory(index) {
+  state.historyIndex = index;
+  state.currentVdom = cloneData(state.history[index].vdom);
+  renderRoot(elements.realRoot, state.currentVdom);
+  renderRoot(elements.testRoot, state.currentVdom);
+  elements.htmlEditor.value = elements.testRoot.innerHTML.trim();
+  renderPatchLog([]);
+  updateViews(state.currentVdom, [], state.history[index].timeLabel);
+  setStatus(`Version ${index + 1} 발행 상태를 복원했습니다.`);
+  flashPublishedPane();
+}
+
+function loadTemplate(templateId) {
+  elements.htmlEditor.value = templateHTML(templateId);
+  elements.htmlEditor.dispatchEvent(new Event("input"));
+  setStatus(`${templateId === "event" ? "이벤트" : "기본"} 템플릿을 편집본에 불러왔습니다.`);
+}
+
+function insertSnippet(type) {
+  const snippet = snippetLibrary[type];
+  if (!snippet) {
+    return;
   }
-}
 
-function renderTraversal(panel, sequence) {
-  panel.innerHTML = "";
-  const list = document.createElement("ol");
-  list.className = "sequence-list";
-  sequence.forEach((entry, index) => {
-    const item = document.createElement("li");
-    item.textContent = `${index + 1}. ${entry.label} @ ${entry.path} (depth ${entry.depth})`;
-    list.appendChild(item);
-  });
-  panel.appendChild(list);
-}
-
-function renderManualPanels() {
-  renderPatchLog();
-  renderHistoryPanel();
-  renderTreePanel();
-  renderTraversal(state.ui.dfsPanel, traverseDFS(state.manual.realVNode));
-  renderTraversal(state.ui.bfsPanel, traverseBFS(state.manual.realVNode));
-
-  state.ui.patchSummary.textContent = `${state.manual.patches.length} patches`;
-  state.ui.historyMeta.textContent = `${state.manual.currentHistoryIndex + 1} / ${state.manual.history.length}`;
-  state.ui.treeMeta.textContent = `nodes: ${countNodes(state.manual.realVNode)}`;
-  state.ui.depthMeta.textContent = `depth: ${calculateMaxDepth(state.manual.realVNode)}`;
-
-  state.ui.backButton.disabled = state.manual.currentHistoryIndex <= 0;
-  state.ui.forwardButton.disabled = state.manual.currentHistoryIndex >= state.manual.history.length - 1;
-}
-
-function resetManualLab() {
-  renderHTMLIntoTarget(state.ui.realDomRoot, MANUAL_SAMPLE_TEMPLATE);
-  const initialVNode = normalizeVNodePaths(domToVNode(state.ui.realDomRoot));
-  state.manual.realVNode = cloneValue(initialVNode);
-  state.manual.testVNode = cloneValue(initialVNode);
-  state.manual.patches = [];
-  state.manual.history = [];
-  state.manual.currentHistoryIndex = -1;
-
-  renderVNodeToRoot(state.ui.testDomRoot, state.manual.testVNode);
-  syncSourceEditorFromTest();
-
-  pushHistory("초기 상태", "실제 DOM을 Virtual DOM으로 바꾸고 테스트 영역을 생성한 상태", state.manual.realVNode, []);
-  setManualStatus("초기 상태", "테스트 영역을 수정한 뒤 Patch를 누르면 diff 결과가 실제 영역에만 최소 변경으로 반영됩니다.");
-  state.ui.editorMessage.textContent = "테스트 영역이나 HTML 소스를 수정한 뒤 Patch를 실행하세요.";
-  renderManualPanels();
-}
-
-function handlePatch() {
-  const newVNode = normalizeVNodePaths(domToVNode(state.ui.testDomRoot));
-  const patches = diff(state.manual.realVNode, newVNode, "0", []);
-  state.manual.patches = patches;
-
-  if (patches.length) {
-    applyPatches(state.ui.realDomRoot, patches, newVNode);
-    state.manual.realVNode = normalizeVNodePaths(domToVNode(state.ui.realDomRoot));
-    state.manual.testVNode = cloneValue(newVNode);
-    pushHistory(
-      `Patch #${state.manual.history.length}`,
-      `${patches.length}개 patch가 실제 영역에 반영된 상태`,
-      state.manual.realVNode,
-      patches
-    );
-    setManualStatus("Patch 적용 완료", `${patches.length}개의 patch가 실제 DOM에 반영되었습니다.`);
+  if (type === "footer") {
+    const footerPattern = /(<div class="footer-links">)([\s\S]*?)(<\/div>\s*<\/footer>)/;
+    if (footerPattern.test(elements.htmlEditor.value)) {
+      elements.htmlEditor.value = elements.htmlEditor.value.replace(footerPattern, `$1$2${snippet}$3`);
+    } else {
+      elements.htmlEditor.value += `\n${snippet}`;
+    }
   } else {
-    state.manual.realVNode = cloneValue(newVNode);
-    state.manual.testVNode = cloneValue(newVNode);
-    pushHistory(`Patch #${state.manual.history.length}`, "변경이 없어 no-op 상태를 저장한 기록", state.manual.realVNode, []);
-    setManualStatus("No-op Patch", "이전 Virtual DOM과 동일하여 실제 DOM에 반영할 변경이 없었습니다.");
-  }
-
-  renderManualPanels();
-}
-
-/* -------------------------------------------------------------------------- */
-/* 12. renderer                                                                */
-/* -------------------------------------------------------------------------- */
-
-function renderBenchmarkMetrics() {
-  const vdomSeries = state.benchmark.series.vdom;
-  const redrawSeries = state.benchmark.series.redraw;
-  const patchSeries = state.benchmark.series.patch;
-  const latestVDOM = vdomSeries[vdomSeries.length - 1] || 0;
-  const latestRedraw = redrawSeries[redrawSeries.length - 1] || 0;
-  const gap = latestRedraw - latestVDOM;
-
-  state.ui.vdomCurrentLatency.textContent = formatMs(latestVDOM);
-  state.ui.redrawCurrentLatency.textContent = formatMs(latestRedraw);
-  state.ui.latencyGapValue.textContent = formatMs(gap);
-  state.ui.tickCounter.textContent = String(state.benchmark.tick);
-  state.ui.vdomAvgLatency.textContent = formatMs(average(vdomSeries));
-  state.ui.vdomP95Latency.textContent = formatMs(percentile(vdomSeries, 0.95));
-  state.ui.redrawAvgLatency.textContent = formatMs(average(redrawSeries));
-  state.ui.redrawP95Latency.textContent = formatMs(percentile(redrawSeries, 0.95));
-  state.ui.vdomMutationTotal.textContent = String(state.benchmark.mutationTotals.vdom);
-  state.ui.redrawMutationTotal.textContent = String(state.benchmark.mutationTotals.redraw);
-  state.ui.patchAverageChip.textContent = `avg patches ${average(patchSeries).toFixed(1)}`;
-  updateBenchmarkStatusText();
-  renderBenchmarkPresetState();
-}
-
-function renderBenchmarkFeed() {
-  const panel = state.ui.benchmarkFeed;
-  panel.innerHTML = "";
-
-  if (!state.benchmark.feed.length) {
-    panel.innerHTML = `
-      <div class="feed-item">
-        <strong class="feed-item__title">stream idle</strong>
-        <p>연속 시작 또는 버스트 30회를 실행하면 tick 로그가 누적됩니다.</p>
-      </div>
-    `;
-    return;
-  }
-
-  state.benchmark.feed.forEach((entry) => {
-    const item = document.createElement("div");
-    item.className = "feed-item";
-    item.innerHTML = `
-      <div class="log-item__head">
-        <strong class="feed-item__title">tick ${entry.tick} · ${escapeHTML(entry.phase)}</strong>
-        <span class="chip chip--slate">${escapeHTML(MODE_LABELS[entry.mode])}</span>
-      </div>
-      <p>VDOM ${formatMs(entry.vdom)} / Imperative walk ${formatMs(entry.redraw)} / gap ${formatMs(entry.delta)} / patches ${entry.patchCount}</p>
-    `;
-    panel.appendChild(item);
-  });
-}
-
-function renderPerformancePanel() {
-  const panel = state.ui.performancePanel;
-  const vdomAvg = average(state.benchmark.series.vdom);
-  const redrawAvg = average(state.benchmark.series.redraw);
-  const deltaAvg = average(state.benchmark.series.delta);
-  const deltaP95 = percentile(state.benchmark.series.delta, 0.95);
-  const patchAvg = average(state.benchmark.series.patch);
-  const estimatedSavings = Math.max(state.benchmark.latestNodeCount - state.benchmark.latestPatchCount, 0);
-  const fasterRuntime = deltaAvg >= 0 ? "VDOM" : "Imperative Walk";
-  const preset = getCurrentPresetMeta();
-  const advisory = getLoadAdvisory();
-  const expectedChangedNodes = Math.max(
-    1,
-    Math.round(state.benchmark.config.itemCount * state.benchmark.config.mutationRatio)
-  );
-
-  panel.innerHTML = `
-    <div class="summary-block">
-      <strong>현재 프리셋</strong>
-      <p>${preset.label} 설정입니다. ${preset.description}. 현재 부하 상태는 ${advisory.label}입니다.</p>
-    </div>
-    <div class="summary-block">
-      <strong>UI 보호 모드</strong>
-      <p>연속 실행은 고정 setInterval이 아니라 보호형 스케줄러로 동작합니다. 최근 tick 비용이 높아지면 자동 감속하고, 연속 실행은 ${BENCHMARK_MAX_CONTINUOUS_MS / 1000}초 뒤 자동 중지해 클릭 응답성을 지키도록 설계했습니다.</p>
-    </div>
-    <div class="summary-block">
-      <strong>비교 해석</strong>
-      <p>현재 설정에서 VDOM 평균은 ${formatMs(vdomAvg)}, no-VDOM imperative walk 평균은 ${formatMs(redrawAvg)}입니다. 평균 기준 우세한 쪽은 ${fasterRuntime}이고, gap 평균은 ${formatMs(deltaAvg)}, gap p95는 ${formatMs(deltaP95)}입니다.</p>
-    </div>
-    <div class="summary-block">
-      <strong>Patch 관점</strong>
-      <p>최근 트리 크기는 약 ${state.benchmark.latestNodeCount} nodes이고, 현재 설정에서 tick당 예상 변경 노드 수는 약 ${expectedChangedNodes}개입니다. 실제 평균 patch 수는 ${patchAvg.toFixed(1)}개입니다.</p>
-    </div>
-    <div class="summary-block">
-      <strong>MutationObserver 관점</strong>
-      <p>누적 DOM mutation은 VDOM ${state.benchmark.mutationTotals.vdom}회, no-VDOM imperative walk ${state.benchmark.mutationTotals.redraw}회입니다. 최근 추정 절감 DOM touches는 약 ${estimatedSavings}개입니다.</p>
-    </div>
-  `;
-}
-
-function renderExplanationPanel() {
-  const mode = MODE_LABELS[state.benchmark.config.mode];
-  const vdomAvg = average(state.benchmark.series.vdom);
-  const redrawAvg = average(state.benchmark.series.redraw);
-  const gap = redrawAvg - vdomAvg;
-  const preset = getCurrentPresetMeta();
-  const expectedChangedNodes = Math.max(
-    1,
-    Math.round(state.benchmark.config.itemCount * state.benchmark.config.mutationRatio)
-  );
-
-  state.ui.explanationPanel.innerHTML = `
-    <section class="explanation-block">
-      <h3>왜 이 콘솔이 React를 설명하는가</h3>
-      <p>이 콘솔은 같은 상태 변화 stream을 두 방식에 동시에 주입합니다. 하나는 이전 Virtual DOM과 새 Virtual DOM을 비교해 patch만 적용하고, 다른 하나는 Virtual DOM 없이 현재 DOM을 직접 순회하며 값을 덮어쓰고 layout read까지 섞습니다. 즉 React-style reconciliation과 layout-sensitive imperative update를 직접 비교하는 화면입니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>왜 연속 실행을 보호형으로 바꿨는가</h3>
-      <p>이 콘솔의 목적은 브라우저를 멈추게 하는 것이 아니라, 같은 조건에서 두 업데이트 전략을 비교하는 것입니다. 그래서 연속 스트림은 처리 시간이 늘어나면 자동 감속하고, MutationObserver와 설명 패널 갱신도 묶어서 한 번씩만 반영하도록 바꿨습니다. 즉 비교 실험은 유지하면서 노트북 입력이 막히는 상황을 줄이는 방향으로 조정했습니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>현재 벤치마크 읽는 법</h3>
-      <ul>
-        <li>Mutation mode는 지금 어떤 종류의 변화가 들어가는지를 뜻합니다. 현재는 <strong>${escapeHTML(mode)}</strong>입니다.</li>
-        <li>트리 크기는 <strong>${state.benchmark.config.itemCount} nodes</strong>이고, 한 tick에서 바뀌는 범위는 <strong>${getMutationScopeText(state.benchmark.config.itemCount, state.benchmark.config.mutationRatio)}</strong>입니다.</li>
-        <li>그래프는 tick마다 측정한 처리 시간을 누적해 보여줍니다.</li>
-        <li>VDOM 곡선은 diff + patch 시간을, No VDOM 곡선은 imperative DOM walk 시간을 의미합니다.</li>
-        <li>현재 평균 gap은 ${formatMs(gap)}입니다. 값이 양수면 no-VDOM 쪽이 더 느린 구간입니다.</li>
-      </ul>
-    </section>
-    <section class="explanation-block">
-      <h3>지금 설정에서 왜 이런 결과가 나오는가</h3>
-      <p>현재 프리셋은 <strong>${escapeHTML(preset.label)}</strong>입니다. ${escapeHTML(preset.description)}. 즉 전체 트리 크기 ${state.benchmark.config.itemCount}개 중 약 ${expectedChangedNodes}개를 tick마다 흔들고, layout read 빈도까지 함께 바꿔서 VDOM bookkeeping이 유리한지, 아니면 수동 DOM walk가 더 단순한지 확인하게 설계했습니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>왜 비교군을 Imperative Walk로 두었나</h3>
-      <p>Virtual DOM을 쓰지 않는다고 해서 무조건 전체 redraw만 하는 것은 아닙니다. 흔한 대안은 현재 DOM을 직접 순회하며 필요한 값을 하나씩 덮어쓰는 방식입니다. 이 baseline은 상태가 여러 영역에 퍼질수록 수동 동기화 비용이 커지고, 읽기와 쓰기가 섞일 때 reflow 부담이 커질 수 있다는 점을 보여주기 좋습니다.</p>
-    </section>
-    <section class="explanation-block">
-      <h3>프리셋 가이드</h3>
-      <ul>
-        <li>VDOM 유리: 큰 트리에 작은 변화가 흩어져 있고 layout read가 섞일 때 patch의 이점이 크게 보입니다.</li>
-        <li>VDOM 불리: 트리가 작고 거의 전체가 다시 계산되며 direct DOM walk가 단순할 때 bookkeeping overhead가 더 크게 드러납니다.</li>
-        <li>균형: 두 방식의 차이가 자연스럽게 드러나는 기본 시연용 설정입니다.</li>
-      </ul>
-    </section>
-  `;
-
-  renderPerformancePanel();
-}
-
-function drawGraph() {
-  const canvas = state.ui.graphCanvas;
-  const context = canvas.getContext("2d");
-  const dpr = window.devicePixelRatio || 1;
-  const width = canvas.clientWidth || 960;
-  const height = canvas.clientHeight || 320;
-
-  if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-  }
-
-  context.setTransform(dpr, 0, 0, dpr, 0, 0);
-  context.clearRect(0, 0, width, height);
-  context.fillStyle = "#050816";
-  context.fillRect(0, 0, width, height);
-
-  const padding = 36;
-  const graphWidth = width - padding * 2;
-  const graphHeight = height - padding * 2;
-  const combined = [...state.benchmark.series.vdom, ...state.benchmark.series.redraw];
-  const maxValue = Math.max(10, ...combined, 1);
-
-  state.ui.graphScaleLabel.textContent = `max ${formatMs(maxValue)}`;
-
-  context.strokeStyle = "rgba(148, 163, 184, 0.12)";
-  for (let index = 0; index <= 4; index += 1) {
-    const y = padding + (graphHeight / 4) * index;
-    context.beginPath();
-    context.moveTo(padding, y);
-    context.lineTo(width - padding, y);
-    context.stroke();
-  }
-
-  function drawSeries(values, strokeStyle, fillStyle) {
-    if (values.length < 2) {
-      return;
-    }
-    context.beginPath();
-    values.forEach((value, index) => {
-      const x = padding + (graphWidth / Math.max(values.length - 1, 1)) * index;
-      const y = padding + graphHeight - (value / maxValue) * graphHeight;
-      if (index === 0) {
-        context.moveTo(x, y);
-      } else {
-        context.lineTo(x, y);
-      }
-    });
-    context.strokeStyle = strokeStyle;
-    context.lineWidth = 2;
-    context.stroke();
-    context.lineTo(padding + graphWidth, padding + graphHeight);
-    context.lineTo(padding, padding + graphHeight);
-    context.closePath();
-    context.fillStyle = fillStyle;
-    context.fill();
-  }
-
-  drawSeries(state.benchmark.series.vdom, "#60a5fa", "rgba(96, 165, 250, 0.08)");
-  drawSeries(state.benchmark.series.redraw, "#f59e0b", "rgba(245, 158, 11, 0.08)");
-
-  context.fillStyle = "#94a3b8";
-  context.font = "12px IBM Plex Mono";
-  context.fillText("VDOM", padding, 20);
-  context.fillStyle = "#60a5fa";
-  context.fillRect(padding + 44, 12, 18, 3);
-  context.fillStyle = "#94a3b8";
-  context.fillText("Imperative walk", padding + 80, 20);
-  context.fillStyle = "#f59e0b";
-  context.fillRect(padding + 208, 12, 18, 3);
-
-}
-
-/* -------------------------------------------------------------------------- */
-/* 13. event bindings                                                          */
-/* -------------------------------------------------------------------------- */
-
-function handleHistoryClick(event) {
-  const card = event.target.closest("[data-history-index]");
-  if (!card) {
-    return;
-  }
-  const index = Number(card.dataset.historyIndex);
-  if (Number.isNaN(index)) {
-    return;
-  }
-  state.manual.currentHistoryIndex = index;
-  restoreSnapshot(state.manual.history[index]);
-}
-
-function bindEvents() {
-  state.ui.benchmarkStartButton.addEventListener("click", startBenchmark);
-  state.ui.benchmarkStopButton.addEventListener("click", stopBenchmark);
-  state.ui.benchmarkBurstButton.addEventListener("click", runBenchmarkBurst);
-  state.ui.benchmarkResetButton.addEventListener("click", resetBenchmark);
-  state.ui.presetBalancedButton.addEventListener("click", () => applyBenchmarkPreset("balanced"));
-  state.ui.presetFavorableButton.addEventListener("click", () => applyBenchmarkPreset("favorable"));
-  state.ui.presetUnfavorableButton.addEventListener("click", () => applyBenchmarkPreset("unfavorable"));
-
-  state.ui.mutationModeSelect.addEventListener("change", (event) => {
-    markBenchmarkConfigCustom();
-    state.benchmark.config.mode = event.target.value;
-    resetBenchmark();
-  });
-
-  state.ui.frequencyRange.addEventListener("input", (event) => {
-    markBenchmarkConfigCustom();
-    state.benchmark.config.frequency = Number(event.target.value);
-    state.ui.frequencyValue.textContent = String(state.benchmark.config.frequency);
-    if (state.benchmark.running) {
-      startBenchmark();
+    const marker = "<footer class=\"newsletter-footer\">";
+    if (elements.htmlEditor.value.includes(marker)) {
+      elements.htmlEditor.value = elements.htmlEditor.value.replace(marker, `${snippet}\n\n          ${marker}`);
     } else {
-      renderBenchmarkPresetState();
+      elements.htmlEditor.value += `\n${snippet}`;
     }
-  });
+  }
 
-  state.ui.itemCountRange.addEventListener("input", (event) => {
-    markBenchmarkConfigCustom();
-    state.benchmark.config.itemCount = Number(event.target.value);
-    state.ui.itemCountValue.textContent = `${state.benchmark.config.itemCount} nodes`;
-    state.ui.mutationRatioValue.textContent = getMutationScopeText(
-      state.benchmark.config.itemCount,
-      state.benchmark.config.mutationRatio
-    );
-    renderBenchmarkPresetState();
-  });
-
-  state.ui.itemCountRange.addEventListener("change", resetBenchmark);
-
-  state.ui.mutationRatioRange.addEventListener("input", (event) => {
-    markBenchmarkConfigCustom();
-    state.benchmark.config.mutationRatio = Number(event.target.value) / 100;
-    state.ui.mutationRatioValue.textContent = getMutationScopeText(
-      state.benchmark.config.itemCount,
-      state.benchmark.config.mutationRatio
-    );
-    renderBenchmarkPresetState();
-    renderPerformancePanel();
-    renderExplanationPanel();
-  });
-
-  state.ui.mutationRatioRange.addEventListener("change", resetBenchmark);
-
-  state.ui.patchButton.addEventListener("click", handlePatch);
-  state.ui.backButton.addEventListener("click", goBack);
-  state.ui.forwardButton.addEventListener("click", goForward);
-  state.ui.resetButton.addEventListener("click", resetManualLab);
-  state.ui.syncSourceButton.addEventListener("click", syncTestFromSourceEditor);
-
-  state.ui.testDomRoot.addEventListener("input", () => {
-    syncSourceEditorFromTest();
-    state.ui.editorMessage.textContent = "테스트 영역이 변경되었습니다. Patch를 눌러 diff 결과를 확인하세요.";
-  });
-
-  state.ui.sourceEditor.addEventListener("input", () => {
-    state.ui.editorMessage.textContent = "소스 에디터가 변경되었습니다. 동기화 후 Patch를 실행하세요.";
-  });
-
-  state.ui.historyPanel.addEventListener("click", handleHistoryClick);
-
-  window.addEventListener("resize", scheduleGraphDraw);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden && state.benchmark.running) {
-      stopBenchmark("hidden");
-    }
-  });
+  elements.htmlEditor.dispatchEvent(new Event("input"));
+  setStatus(`${type} 스니펫을 편집본 HTML에 추가했습니다.`);
 }
 
-/* -------------------------------------------------------------------------- */
-/* 14. init                                                                    */
-/* -------------------------------------------------------------------------- */
-
-function init() {
-  state.ui = getElements();
-  bindEvents();
-  resetBenchmark();
-  resetManualLab();
-  window.__VDOM_CONSOLE__ = state;
-  scheduleGraphDraw();
+function initialize(templateId = "main") {
+  const html = templateHTML(templateId);
+  state.currentVdom = sourceToVdom(html);
+  renderRoot(elements.realRoot, state.currentVdom);
+  renderRoot(elements.testRoot, state.currentVdom);
+  elements.htmlEditor.value = elements.testRoot.innerHTML.trim();
+  state.history = [createHistoryEntry(state.currentVdom, "Initial publish", 0)];
+  state.historyIndex = 0;
+  renderPatchLog([]);
+  updateViews(state.currentVdom, [], state.history[0].timeLabel);
 }
 
-window.addEventListener("DOMContentLoaded", init);
+elements.htmlEditor.addEventListener("input", () => {
+  syncTestFromEditor();
+  setStatus("편집본 HTML을 다시 읽어 새 Virtual DOM 후보를 준비했습니다.");
+});
+
+elements.patchButton.addEventListener("click", () => {
+  const nextVdom = syncTestFromEditor();
+  const patches = VDOMEngine.diffRoot(state.currentVdom, nextVdom);
+
+  if (!patches.length) {
+    renderPatchLog([]);
+    updateViews(nextVdom, [], state.history[state.historyIndex]?.timeLabel || "--:--");
+    setStatus("변경점이 없어 새 발행본을 만들지 않았습니다.");
+    return;
+  }
+
+  VDOMEngine.patchRoot(elements.realRoot, state.currentVdom, nextVdom, patches);
+  state.currentVdom = containerToVdom(elements.realRoot);
+  pushHistory(state.currentVdom, "Patched publish", patches.length);
+  renderPatchLog(patches);
+  updateViews(nextVdom, patches, state.history[state.historyIndex].timeLabel);
+  setStatus(`Patch 발행 완료: ${patches.length}개의 변경만 실제 발행본 DOM에 반영했습니다.`);
+  flashPublishedPane();
+});
+
+elements.undoButton.addEventListener("click", () => {
+  if (state.historyIndex > 0) {
+    restoreFromHistory(state.historyIndex - 1);
+  }
+});
+
+elements.redoButton.addEventListener("click", () => {
+  if (state.historyIndex < state.history.length - 1) {
+    restoreFromHistory(state.historyIndex + 1);
+  }
+});
+
+elements.resetButton.addEventListener("click", () => {
+  initialize(state.currentTemplateId);
+  setStatus("현재 템플릿 기준으로 샘플 발행본과 편집본을 초기화했습니다.");
+});
+
+document.querySelectorAll("[data-template]").forEach((button) => {
+  button.addEventListener("click", () => loadTemplate(button.dataset.template));
+});
+
+document.querySelectorAll("[data-snippet]").forEach((button) => {
+  button.addEventListener("click", () => insertSnippet(button.dataset.snippet));
+});
+
+initialize();
+window.__PATCHLETTER_STUDIO__ = { elements, state, VDOMEngine };

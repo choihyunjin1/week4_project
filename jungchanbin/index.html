@@ -513,6 +513,7 @@
     .patch-pill.replace { color: #ddd1ff; border-color: rgba(167, 139, 250, 0.24); background: rgba(167, 139, 250, 0.12); }
     .patch-pill.props { color: #cbe0ff; border-color: rgba(96, 165, 250, 0.24); background: rgba(96, 165, 250, 0.12); }
     .patch-pill.text { color: #d2fff6; border-color: rgba(45, 212, 191, 0.24); background: rgba(45, 212, 191, 0.12); }
+    .patch-pill.reorder { color: #ffe6a7; border-color: rgba(245, 158, 11, 0.24); background: rgba(245, 158, 11, 0.12); }
 
     .patch-log {
       margin: 0;
@@ -526,6 +527,7 @@
     .patch-log .replace { color: #d3c5ff; }
     .patch-log .props { color: #bfd8ff; }
     .patch-log .text { color: #bff7ee; }
+    .patch-log .reorder { color: #ffe6a7; }
 
     .history-list {
       list-style: none;
@@ -1462,7 +1464,7 @@
       </article>
     </template>
   </main>
-  <script>
+  <script type="text/plain" data-legacy-script="disabled">
     const realRoot = document.getElementById("realRoot");
     const testRoot = document.getElementById("testRoot");
     const htmlEditor = document.getElementById("htmlEditor");
@@ -2015,5 +2017,7 @@
 
     initialize();
   </script>
+  <script src="../core/vdom.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
