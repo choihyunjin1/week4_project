@@ -333,7 +333,42 @@ function getFirstHighlightedPath(paths) {
   return sortedPaths[0] || null;
 }
 
-function renderVNodeTreeMarkup(node, highlightedPaths) {
+function getAncestorPaths(path) {
+  const parts = String(path).split("-");
+  const ancestors = new Set();
+
+  for (let index = 0; index < parts.length; index += 1) {
+    ancestors.add(parts.slice(0, index + 1).join("-"));
+  }
+
+  return ancestors;
+}
+
+function collectVNodePaths(node, paths = new Set()) {
+  if (!node) {
+    return paths;
+  }
+
+  paths.add(node.path);
+  (node.children || []).forEach((child) => collectVNodePaths(child, paths));
+  return paths;
+}
+
+function buildEmphasisPaths(tree, highlightedPaths, focusPath) {
+  const emphasisPaths = new Set();
+
+  highlightedPaths.forEach((path) => {
+    getAncestorPaths(path).forEach((ancestorPath) => emphasisPaths.add(ancestorPath));
+  });
+
+  if (focusPath) {
+    collectVNodePaths(findVNodeByPath(tree, focusPath), emphasisPaths);
+  }
+
+  return emphasisPaths;
+}
+
+function renderVNodeTreeMarkup(node, highlightedPaths, emphasisPaths) {
   if (!node) {
     return "";
   }
@@ -344,11 +379,20 @@ function renderVNodeTreeMarkup(node, highlightedPaths) {
       : `&lt;${escapeHTML(node.tag)}&gt;`;
   const badge = node.type === "text" ? "text" : "element";
   const childrenMarkup = (node.children || [])
-    .map((child) => renderVNodeTreeMarkup(child, highlightedPaths))
+    .map((child) => renderVNodeTreeMarkup(child, highlightedPaths, emphasisPaths))
     .join("");
+  const hasEmphasis = emphasisPaths?.size;
+  const classNames = [
+    "vdom-tree__node",
+    highlightedPaths.has(node.path) ? "is-changed" : "",
+    emphasisPaths?.has(node.path) && !highlightedPaths.has(node.path) ? "is-context" : "",
+    hasEmphasis && !emphasisPaths?.has(node.path) ? "is-dimmed" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return `
-    <li class="vdom-tree__node ${highlightedPaths.has(node.path) ? "is-changed" : ""}">
+    <li class="${classNames}">
       <div class="vdom-tree__row" data-tree-path="${escapeHTML(node.path)}">
         <span class="vdom-tree__badge">${badge}</span>
         <code class="vdom-tree__path">${escapeHTML(node.path)}</code>
@@ -356,6 +400,140 @@ function renderVNodeTreeMarkup(node, highlightedPaths) {
       </div>
       ${childrenMarkup ? `<ul class="vdom-tree__children">${childrenMarkup}</ul>` : ""}
     </li>
+  `;
+}
+
+function getVNodeOrbLabel(node) {
+  if (node.type === "text") {
+    return "Tx";
+  }
+
+  const tag = String(node.tag || "").trim();
+  return tag.slice(0, 2).toUpperCase() || "EL";
+}
+
+function getVNodeOrbTitle(node) {
+  if (!node) {
+    return "";
+  }
+
+  const label =
+    node.type === "text"
+      ? `#text "${(node.text || "").trim() || " "}"`
+      : `<${node.tag}>`;
+  const keyLabel = node.key ? `\nkey: ${node.key}` : "";
+
+  return `${label}\npath: ${node.path}${keyLabel}`;
+}
+
+function renderVNodeOrbNode(node, highlightedPaths, emphasisPaths, interactive = false) {
+  if (!node) {
+    return "";
+  }
+
+  const shortLabel = getVNodeOrbLabel(node);
+  const caption = node.type === "text" ? "#text" : node.tag;
+  const wrapperTag = interactive ? "button" : "div";
+  const interactionAttrs = interactive
+    ? `type="button" data-tree-path="${escapeHTML(node.path)}"`
+    : `data-tree-path="${escapeHTML(node.path)}"`;
+  const childrenMarkup = (node.children || [])
+    .map((child) => renderVNodeOrbNode(child, highlightedPaths, emphasisPaths, interactive))
+    .join("");
+  const hasEmphasis = emphasisPaths?.size;
+  const classNames = [
+    "vdom-orb",
+    node.type === "text" ? "is-text" : "",
+    highlightedPaths.has(node.path) ? "is-changed" : "",
+    emphasisPaths?.has(node.path) && !highlightedPaths.has(node.path) ? "is-context" : "",
+    hasEmphasis && !emphasisPaths?.has(node.path) ? "is-dimmed" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return `
+    <li class="vdom-orb__node">
+      <${wrapperTag}
+        class="${classNames}"
+        title="${escapeHTML(getVNodeOrbTitle(node))}"
+        ${interactionAttrs}
+      >
+        <span class="vdom-orb__token">${escapeHTML(shortLabel)}</span>
+      </${wrapperTag}>
+      <span class="vdom-orb__caption">${escapeHTML(caption)}</span>
+      ${childrenMarkup ? `<ul class="vdom-orb__children">${childrenMarkup}</ul>` : ""}
+    </li>
+  `;
+}
+
+function renderVNodeOrbForest(tree, highlightedPaths, emphasisPaths, interactive = false) {
+  const children = tree?.children || [];
+  if (!children.length) {
+    return `<div class="lab-feed__empty">표시할 VDOM이 없습니다.</div>`;
+  }
+
+  return `
+    <ul class="vdom-orb-forest">
+      ${children.map((child) => renderVNodeOrbNode(child, highlightedPaths, emphasisPaths, interactive)).join("")}
+    </ul>
+  `;
+}
+
+function findVNodeByPath(node, targetPath) {
+  return findVNode(node, (candidate) => candidate.path === targetPath);
+}
+
+function getVNodeSummaryLines(node) {
+  if (!node) {
+    return [];
+  }
+
+  if (node.type === "text") {
+    return [(node.text || "").trim() || "(blank)"];
+  }
+
+  const lines = [];
+  const attrs = Object.entries(node.attrs || {}).filter(([name]) => name !== "class");
+  if (attrs.length) {
+    lines.push(attrs.map(([name, value]) => `${name}=${String(value)}`).join(" · "));
+  }
+
+  const directText = readVNodeText(node).trim();
+  if (directText) {
+    lines.push(directText);
+  } else {
+    lines.push(`children ${node.children?.length || 0}`);
+  }
+
+  return lines;
+}
+
+function renderVNodeFocusCard(node, title, isChanged = false) {
+  if (!node) {
+    return `
+      <div class="vdom-focus-card vdom-focus-card--empty">
+        <span class="vdom-focus-card__eyebrow">${escapeHTML(title)}</span>
+        <strong>matching node 없음</strong>
+      </div>
+    `;
+  }
+
+  const label = node.type === "text" ? "#text" : `<${node.tag}>`;
+  const details = getVNodeSummaryLines(node)
+    .map((line) => `<p>${escapeHTML(line)}</p>`)
+    .join("");
+
+  return `
+    <div class="vdom-focus-card ${isChanged ? "is-changed" : ""}">
+      <div class="vdom-focus-card__head">
+        <span class="vdom-focus-card__eyebrow">${escapeHTML(title)}</span>
+        <code>${escapeHTML(node.path)}</code>
+      </div>
+      <strong class="vdom-focus-card__title">${escapeHTML(label)}</strong>
+      <div class="vdom-focus-card__body">
+        ${details}
+      </div>
+    </div>
   `;
 }
 
@@ -764,6 +942,39 @@ export function mountDemoTab(container) {
           </div>
         </article>
 
+        <article class="lab-card lab-card--compare">
+          <div class="lab-card__head">
+            <div>
+              <p class="eyebrow">Diff View</p>
+              <h3 class="card-title">Old VDOM / New VDOM 비교</h3>
+            </div>
+            <span id="compareMetrics" class="runtime-badge">0 changed</span>
+          </div>
+          <div class="metrics-grid metrics-grid--lab">
+            <div class="metric-box"><span>Old Nodes</span><strong id="metricOldNodes">0</strong></div>
+            <div class="metric-box"><span>New Nodes</span><strong id="metricNewNodes">0</strong></div>
+            <div class="metric-box"><span>Changed</span><strong id="metricChanged">0</strong></div>
+          </div>
+          <div class="vdom-compare-grid">
+            <section class="vdom-compare-pane">
+              <div class="vdom-compare-pane__head">
+                <strong>Old VDOM</strong>
+                <span>actualTree</span>
+              </div>
+              <div id="oldVdomGraph" class="vdom-orb-scroller"></div>
+              <div id="oldVdomFocus"></div>
+            </section>
+            <section class="vdom-compare-pane vdom-compare-pane--new">
+              <div class="vdom-compare-pane__head">
+                <strong>New VDOM</strong>
+                <span>draftTree</span>
+              </div>
+              <div id="newVdomGraph" class="vdom-orb-scroller"></div>
+              <div id="newVdomFocus"></div>
+            </section>
+          </div>
+        </article>
+
         <article class="lab-card lab-card--patchfeed">
           <div class="lab-card__head">
             <div>
@@ -814,13 +1025,23 @@ export function mountDemoTab(container) {
     historyRail: container.querySelector("#historyRail"),
     historyBadge: container.querySelector("#historyBadge"),
     treeMetrics: container.querySelector("#treeMetrics"),
+    compareMetrics: container.querySelector("#compareMetrics"),
     metricNodes: container.querySelector("#metricNodes"),
     metricDepth: container.querySelector("#metricDepth"),
     metricHistory: container.querySelector("#metricHistory"),
+    metricOldNodes: container.querySelector("#metricOldNodes"),
+    metricNewNodes: container.querySelector("#metricNewNodes"),
+    metricChanged: container.querySelector("#metricChanged"),
     vdomTree: container.querySelector("#vdomTree"),
+    oldVdomGraph: container.querySelector("#oldVdomGraph"),
+    newVdomGraph: container.querySelector("#newVdomGraph"),
+    oldVdomFocus: container.querySelector("#oldVdomFocus"),
+    newVdomFocus: container.querySelector("#newVdomFocus"),
     observerBadge: container.querySelector("#observerBadge"),
     observerFeed: container.querySelector("#observerFeed"),
-    treeScroller: container.querySelector(".lab-card--tree .traversal-card")
+    treeScroller: container.querySelector(".vdom-compare-pane--new .vdom-orb-scroller"),
+    oldTreeScroller: container.querySelector(".vdom-compare-pane:not(.vdom-compare-pane--new) .vdom-orb-scroller"),
+    detailTreeScroller: container.querySelector(".lab-card--tree .traversal-card")
   };
 
   const state = {
@@ -832,14 +1053,30 @@ export function mountDemoTab(container) {
     observerCount: 0,
     highlightedPaths: new Set(),
     pendingScrollPath: null,
-    editorLineRanges: new Map()
+    editorLineRanges: new Map(),
+    focusPath: null
   };
+
+  function updateHighlightState({ autoScroll = false } = {}) {
+    if (!state.actualTree || !state.draftTree) {
+      state.highlightedPaths = new Set();
+      state.pendingScrollPath = null;
+      state.focusPath = null;
+      return [];
+    }
+
+    const patches = diffVNodeTrees(state.actualTree, state.draftTree);
+    state.highlightedPaths = getPatchHighlightPaths(patches);
+    const firstPath = getFirstHighlightedPath(state.highlightedPaths);
+    state.pendingScrollPath = autoScroll ? firstPath : null;
+    state.focusPath = firstPath;
+    return patches;
+  }
 
   function rebuildDraftFromEditor() {
     const nextTree = parseMarkupToTree(ui.editor.value);
     state.draftTree = cloneVNodeTree(nextTree);
-    state.highlightedPaths = new Set();
-    state.pendingScrollPath = null;
+    updateHighlightState({ autoScroll: true });
     renderVNodeTree(ui.testRoot, state.draftTree);
     renderTreeStats();
   }
@@ -885,32 +1122,61 @@ export function mountDemoTab(container) {
     ui.patchDetails.innerHTML = patchFeedMarkup(feedItems.slice(0, FEED_LIMIT));
   }
 
+  function scrollContainerToPath(container, targetPath, scroller) {
+    if (!container || !scroller || !targetPath) {
+      return;
+    }
+
+    const target = container.querySelector(`[data-tree-path="${targetPath}"]`);
+    if (!target) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const targetRect = target.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const nextScrollTop =
+        scroller.scrollTop +
+        (targetRect.top - scrollerRect.top) -
+        scroller.clientHeight / 2 +
+        targetRect.height / 2;
+
+      scroller.scrollTo({
+        top: Math.max(0, nextScrollTop),
+        behavior: "smooth"
+      });
+    });
+  }
+
   function renderTreeStats() {
     const stats = snapshotStats(state.draftTree || state.actualTree);
+    const oldStats = snapshotStats(state.actualTree);
+    const newStats = snapshotStats(state.draftTree || state.actualTree);
+    const focusPath = state.focusPath || getFirstHighlightedPath(state.highlightedPaths);
+    const oldFocusNode = focusPath ? findVNodeByPath(state.actualTree, focusPath) : null;
+    const newFocusNode = focusPath ? findVNodeByPath(state.draftTree || state.actualTree, focusPath) : null;
+    const detailEmphasisPaths = buildEmphasisPaths(state.draftTree || state.actualTree, state.highlightedPaths, focusPath);
+    const oldEmphasisPaths = buildEmphasisPaths(state.actualTree, state.highlightedPaths, focusPath);
+    const newEmphasisPaths = buildEmphasisPaths(state.draftTree || state.actualTree, state.highlightedPaths, focusPath);
+
     ui.treeMetrics.textContent = `${stats.nodes} nodes / depth ${stats.depth}`;
+    ui.compareMetrics.textContent = `${state.highlightedPaths.size} changed`;
     ui.metricNodes.textContent = String(stats.nodes);
     ui.metricDepth.textContent = String(stats.depth);
     ui.metricHistory.textContent = String(state.history.length);
-    ui.vdomTree.innerHTML = renderVNodeTreeMarkup(state.draftTree || state.actualTree, state.highlightedPaths);
+    ui.metricOldNodes.textContent = String(oldStats.nodes);
+    ui.metricNewNodes.textContent = String(newStats.nodes);
+    ui.metricChanged.textContent = String(state.highlightedPaths.size);
+    ui.vdomTree.innerHTML = renderVNodeTreeMarkup(state.draftTree || state.actualTree, state.highlightedPaths, detailEmphasisPaths);
+    ui.oldVdomGraph.innerHTML = renderVNodeOrbForest(state.actualTree, state.highlightedPaths, oldEmphasisPaths);
+    ui.newVdomGraph.innerHTML = renderVNodeOrbForest(state.draftTree || state.actualTree, state.highlightedPaths, newEmphasisPaths, true);
+    ui.oldVdomFocus.innerHTML = renderVNodeFocusCard(oldFocusNode, "Old focus", Boolean(focusPath));
+    ui.newVdomFocus.innerHTML = renderVNodeFocusCard(newFocusNode, "New focus", Boolean(focusPath));
 
     if (state.pendingScrollPath) {
-      const target = ui.vdomTree.querySelector(`[data-tree-path="${state.pendingScrollPath}"]`);
-      if (target && ui.treeScroller) {
-        requestAnimationFrame(() => {
-          const targetRect = target.getBoundingClientRect();
-          const scrollerRect = ui.treeScroller.getBoundingClientRect();
-          const nextScrollTop =
-            ui.treeScroller.scrollTop +
-            (targetRect.top - scrollerRect.top) -
-            ui.treeScroller.clientHeight / 2 +
-            targetRect.height / 2;
-
-          ui.treeScroller.scrollTo({
-            top: Math.max(0, nextScrollTop),
-            behavior: "smooth"
-          });
-        });
-      }
+      scrollContainerToPath(ui.vdomTree, state.pendingScrollPath, ui.detailTreeScroller);
+      scrollContainerToPath(ui.newVdomGraph, state.pendingScrollPath, ui.treeScroller);
+      scrollContainerToPath(ui.oldVdomGraph, state.pendingScrollPath, ui.oldTreeScroller);
       state.pendingScrollPath = null;
     }
   }
@@ -998,8 +1264,7 @@ export function mountDemoTab(container) {
       characterData: true
     });
     syncEditorToDraft();
-    state.highlightedPaths = new Set();
-    state.pendingScrollPath = null;
+    updateHighlightState();
     renderPatchPanels([], snapshot.note);
     renderHistory();
     renderTreeStats();
@@ -1063,6 +1328,8 @@ export function mountDemoTab(container) {
     const patches = diffVNodeTrees(state.actualTree, nextTree);
     applyPatchesToDom(ui.actualRoot, patches, nextTree);
     state.actualTree = cloneVNodeTree(nextTree);
+    updateHighlightState({ autoScroll: true });
+    renderTreeStats();
   };
 
   const handleTestInteraction = (event) => {
@@ -1075,8 +1342,7 @@ export function mountDemoTab(container) {
     const patches = diffVNodeTrees(state.draftTree, nextTree);
     applyPatchesToDom(ui.testRoot, patches, nextTree);
     state.draftTree = cloneVNodeTree(nextTree);
-    state.highlightedPaths = new Set();
-    state.pendingScrollPath = null;
+    updateHighlightState({ autoScroll: true });
     syncEditorToDraft();
     renderTreeStats();
   };
@@ -1089,7 +1355,19 @@ export function mountDemoTab(container) {
       return;
     }
 
-    revealEditorRange(treeRow.getAttribute("data-tree-path"));
+    state.focusPath = treeRow.getAttribute("data-tree-path");
+    revealEditorRange(state.focusPath);
+    renderTreeStats();
+  });
+  ui.newVdomGraph.addEventListener("click", (event) => {
+    const treeRow = event.target.closest("[data-tree-path]");
+    if (!treeRow) {
+      return;
+    }
+
+    state.focusPath = treeRow.getAttribute("data-tree-path");
+    revealEditorRange(state.focusPath);
+    renderTreeStats();
   });
 
   ui.editor.addEventListener("input", () => {
@@ -1102,8 +1380,7 @@ export function mountDemoTab(container) {
     const patches = diffVNodeTrees(previousTree, nextTree);
 
     if (!patches.length) {
-      state.highlightedPaths = new Set();
-      state.pendingScrollPath = null;
+      updateHighlightState();
       renderPatchPanels([], "Diff 결과 변경점이 없습니다.");
       renderTreeStats();
       return;
@@ -1114,6 +1391,7 @@ export function mountDemoTab(container) {
     state.draftTree = cloneVNodeTree(nextTree);
     state.highlightedPaths = getPatchHighlightPaths(patches);
     state.pendingScrollPath = getFirstHighlightedPath(state.highlightedPaths);
+    state.focusPath = state.pendingScrollPath;
     syncEditorToDraft();
     const snapshot = createSnapshot(nextTree, `Patched ${patches.length} changes`, patches);
     pushHistory(snapshot);
