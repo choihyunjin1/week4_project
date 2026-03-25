@@ -135,33 +135,57 @@ function formatAttributes(attrs = {}) {
     .join(" ");
 }
 
-function prettyPrintNode(node, depth = 0) {
+function prettyPrintNode(node, depth = 0, lines = [], ranges = new Map()) {
   const indent = "  ".repeat(depth);
+  const startLine = lines.length;
 
   if (node.type === "text") {
-    return `${indent}${node.text}`;
+    lines.push(`${indent}${node.text}`);
+    ranges.set(node.path, { startLine, endLine: lines.length - 1 });
+    return;
   }
 
   const attrString = formatAttributes(node.attrs);
   const openTag = attrString ? `<${node.tag} ${attrString}>` : `<${node.tag}>`;
 
   if (!node.children || !node.children.length) {
-    return `${indent}${openTag}</${node.tag}>`;
+    lines.push(`${indent}${openTag}</${node.tag}>`);
+    ranges.set(node.path, { startLine, endLine: lines.length - 1 });
+    return;
   }
 
   if (node.children.length === 1 && node.children[0].type === "text") {
-    return `${indent}${openTag}${node.children[0].text}</${node.tag}>`;
+    lines.push(`${indent}${openTag}${node.children[0].text}</${node.tag}>`);
+    ranges.set(node.path, { startLine, endLine: lines.length - 1 });
+    ranges.set(node.children[0].path, { startLine, endLine: lines.length - 1 });
+    return;
   }
 
-  return [
-    `${indent}${openTag}`,
-    ...node.children.map((child) => prettyPrintNode(child, depth + 1)),
-    `${indent}</${node.tag}>`
-  ].join("\n");
+  lines.push(`${indent}${openTag}`);
+  node.children.forEach((child) => prettyPrintNode(child, depth + 1, lines, ranges));
+  lines.push(`${indent}</${node.tag}>`);
+  ranges.set(node.path, { startLine, endLine: lines.length - 1 });
+}
+
+function buildTreeMarkupWithRanges(tree) {
+  const lines = [];
+  const ranges = new Map();
+
+  (tree.children || []).forEach((child, index) => {
+    if (index > 0) {
+      lines.push("");
+    }
+    prettyPrintNode(child, 0, lines, ranges);
+  });
+
+  return {
+    markup: lines.join("\n"),
+    ranges
+  };
 }
 
 function formatTreeMarkup(tree) {
-  return (tree.children || []).map((child) => prettyPrintNode(child)).join("\n\n");
+  return buildTreeMarkupWithRanges(tree).markup;
 }
 
 function escapeHTML(value) {
@@ -644,10 +668,6 @@ function buildInteractiveNextTree(sourceTree, action) {
           commentNode,
           (node) => node.attrs && Object.prototype.hasOwnProperty.call(node.attrs, "data-comment-text")
         );
-        const inputNode = findVNode(
-          commentNode,
-          (node) => node.attrs && node.attrs["data-edit-input"] === action.commentKey
-        );
         const editorNode = findVNode(
           commentNode,
           (node) => node.attrs && node.attrs.class === "comment-editor"
@@ -658,9 +678,6 @@ function buildInteractiveNextTree(sourceTree, action) {
         );
         if (textNode) {
           writeVNodeText(textNode, action.text);
-        }
-        if (inputNode) {
-          inputNode.attrs.value = action.text;
         }
         if (editorNode) {
           editorNode.attrs["data-editing"] = "false";
@@ -814,7 +831,8 @@ export function mountDemoTab(container) {
     observerFeed: [],
     observerCount: 0,
     highlightedPaths: new Set(),
-    pendingScrollPath: null
+    pendingScrollPath: null,
+    editorLineRanges: new Map()
   };
 
   function rebuildDraftFromEditor() {
@@ -929,7 +947,36 @@ export function mountDemoTab(container) {
   }
 
   function syncEditorToDraft() {
-    ui.editor.value = formatTreeMarkup(state.draftTree);
+    const { markup, ranges } = buildTreeMarkupWithRanges(state.draftTree);
+    ui.editor.value = markup;
+    state.editorLineRanges = ranges;
+  }
+
+  function getEditorOffsetForLine(lineNumber) {
+    const lines = ui.editor.value.split("\n");
+    let offset = 0;
+
+    for (let index = 0; index < lineNumber; index += 1) {
+      offset += (lines[index] || "").length + 1;
+    }
+
+    return offset;
+  }
+
+  function revealEditorRange(path) {
+    const range = state.editorLineRanges.get(path);
+    if (!range) {
+      return;
+    }
+
+    const selectionStart = getEditorOffsetForLine(range.startLine);
+    const selectionEnd = Math.max(
+      selectionStart,
+      getEditorOffsetForLine(range.endLine + 1) - 1
+    );
+
+    ui.editor.focus();
+    ui.editor.setSelectionRange(selectionStart, selectionEnd);
   }
 
   function restoreSnapshot(index) {
@@ -1036,6 +1083,14 @@ export function mountDemoTab(container) {
 
   ui.actualRoot.addEventListener("click", handleActualInteraction);
   ui.testRoot.addEventListener("click", handleTestInteraction);
+  ui.vdomTree.addEventListener("click", (event) => {
+    const treeRow = event.target.closest("[data-tree-path]");
+    if (!treeRow) {
+      return;
+    }
+
+    revealEditorRange(treeRow.getAttribute("data-tree-path"));
+  });
 
   ui.editor.addEventListener("input", () => {
     rebuildDraftFromEditor();
