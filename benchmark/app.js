@@ -3,12 +3,26 @@
   Vanilla JavaScript implementation focused on explainability.
 */
 
+import {
+  VNODE_PATCH_TYPES,
+  applyPatchesToDom as applySharedPatchesToDom,
+  countVNodeNodes as countSharedVNodeNodes,
+  diffVNodeTrees as diffSharedVNodeTrees,
+  domToVNodeTree as domToSharedVNodeTree,
+  getVNodeMaxDepth as getSharedVNodeMaxDepth,
+  normalizeVNodeTree as normalizeSharedVNodeTree,
+  renderVNodeTree as renderSharedVNodeTree,
+  traverseVNodeBFS as traverseSharedVNodeBFS,
+  traverseVNodeDFS as traverseSharedVNodeDFS
+} from "../packages/team3-react/src/index.js";
+
 /* -------------------------------------------------------------------------- */
 /* 1. constants                                                                */
 /* -------------------------------------------------------------------------- */
 
 const VDOMEngine = window.VDOMEngine;
-const { NODE_TYPE, PATCH_TYPES } = VDOMEngine;
+const { NODE_TYPE } = VDOMEngine;
+const PATCH_TYPES = VNODE_PATCH_TYPES;
 
 const GRAPH_POINT_LIMIT = 60;
 const BENCHMARK_FEED_LIMIT = 10;
@@ -377,11 +391,11 @@ function renderHTMLIntoTarget(target, html) {
 }
 
 function countNodes(vNode) {
-  return VDOMEngine.countNodes(vNode);
+  return countSharedVNodeNodes(vNode);
 }
 
 function calculateMaxDepth(vNode) {
-  return VDOMEngine.calculateMaxDepth(vNode);
+  return getSharedVNodeMaxDepth(vNode);
 }
 
 function getNodeDescriptor(vNode) {
@@ -434,11 +448,11 @@ function domNodeToVNode(node, path, depth) {
   비교 대상이 여러 루트 노드를 가질 수 있으므로 하나의 트리 루트로 감싸야 diff와 history를 단순하게 유지할 수 있다.
 */
 function domToVNode(container) {
-  return VDOMEngine.domToVNode(container);
+  return domToSharedVNodeTree(container);
 }
 
 function normalizeVNodePaths(vNode, path = "0", depth = 0) {
-  return VDOMEngine.normalizeVNodePaths(vNode, path, depth);
+  return normalizeSharedVNodeTree(vNode, path, depth);
 }
 
 /*
@@ -456,7 +470,7 @@ function createDOMFromVNode(vNode) {
 }
 
 function renderVNodeToRoot(root, vNode) {
-  return VDOMEngine.renderVNodeToRoot(root, vNode);
+  renderSharedVNodeTree(root, vNode);
 }
 
 function findVNodeByPath(vNode, path) {
@@ -478,7 +492,7 @@ function findVNodeByPath(vNode, path) {
   Virtual DOM이 일반 트리라는 점과 depth 기반 방문 순서를 UI로 설명하기 위해 필요하다.
 */
 function traverseDFS(root) {
-  return VDOMEngine.traverseDFS(root);
+  return traverseSharedVNodeDFS(root);
 }
 
 /*
@@ -492,7 +506,7 @@ function traverseDFS(root) {
   레벨 순회를 통해 같은 depth에 있는 노드가 어떻게 배치되는지 보여주기 위해 필요하다.
 */
 function traverseBFS(root) {
-  return VDOMEngine.traverseBFS(root);
+  return traverseSharedVNodeBFS(root);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -524,7 +538,7 @@ function diffChildren(oldChildren, newChildren, parentPath, patches) {
   실제 DOM에 들어가기 전에 메모리 상에서 변경점을 계산해야 최소 변경 방식이 가능하다.
 */
 function diff(oldNode, newNode, path = "0", patches = []) {
-  return VDOMEngine.diff(oldNode, newNode, path, patches);
+  return diffSharedVNodeTrees(oldNode, newNode, path, patches);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -542,7 +556,7 @@ function diff(oldNode, newNode, path = "0", patches = []) {
   diff 결과를 실제 화면 변화로 연결하는 단계이며, Virtual DOM의 핵심 가치는 바로 여기서 드러난다.
 */
 function applyPatches(root, patches, newVNodeRoot) {
-  VDOMEngine.applyPatches(root, patches, newVNodeRoot);
+  applySharedPatchesToDom(root, patches, newVNodeRoot);
 
   if (state.benchmark.running || state.benchmark.burstRemaining > 0) {
     state.benchmark.mutationTotals.vdom += patches.length;
