@@ -1,4 +1,4 @@
-import { createElement, render } from "../../../packages/cyb-react/src/index.js";
+import { createElement, render } from "../../../packages/team3-react/src/index.js";
 
 const h = createElement;
 const HISTORY_LIMIT = 18;
@@ -76,7 +76,7 @@ function RuntimeTree({ model, tone }) {
     h(
       "header",
       { className: "runtime-header" },
-      h("strong", null, `${tone === "library" ? "cyb-react" : "Imperative DOM"} · ${model.phase}`),
+      h("strong", null, `${tone === "library" ? "team3-react" : "Imperative DOM"} · ${model.phase}`),
       h("span", { className: "runtime-badge" }, `tick ${model.tick}`)
     ),
     h(
@@ -188,7 +188,7 @@ export function mountBenchmarkTab(container) {
     <section class="tab-grid benchmark-grid">
       <article class="hero-panel hero-panel--wide">
         <p class="eyebrow">Benchmark</p>
-        <h2 class="hero-title">공개 API만 사용해서 cyb-react와 수동 DOM 갱신을 비교합니다.</h2>
+        <h2 class="hero-title">공개 API만 사용해서 team3-react와 수동 DOM 갱신을 비교합니다.</h2>
         <p class="hero-copy">동일한 모델 변화 스트림을 두 런타임에 주입합니다. 한쪽은 <code>render()</code> 기반 diff + commit, 다른 쪽은 동일 구조를 직접 DOM 조작으로 업데이트합니다.</p>
       </article>
 
@@ -230,7 +230,7 @@ export function mountBenchmarkTab(container) {
       </article>
 
       <article class="surface-card">
-        <p class="eyebrow">cyb-react</p>
+        <p class="eyebrow">team3-react</p>
         <h3 class="card-title">Library Runtime</h3>
         <div id="libraryRoot" class="runtime-root"></div>
       </article>
@@ -245,7 +245,7 @@ export function mountBenchmarkTab(container) {
         <p class="eyebrow">Metrics</p>
         <h3 class="card-title">Current Snapshot</h3>
         <div class="metrics-grid">
-          <div class="metric-box"><span>cyb-react avg</span><strong id="metricLibAvg">0.00ms</strong></div>
+          <div class="metric-box"><span>team3-react avg</span><strong id="metricLibAvg">0.00ms</strong></div>
           <div class="metric-box"><span>DOM avg</span><strong id="metricDomAvg">0.00ms</strong></div>
           <div class="metric-box"><span>gap avg</span><strong id="metricGapAvg">0.00ms</strong></div>
           <div class="metric-box"><span>tick</span><strong id="metricTick">0</strong></div>
@@ -336,7 +336,7 @@ export function mountBenchmarkTab(container) {
       row.className = "feed-item";
       row.innerHTML = `
         <strong>tick ${entry.tick} · ${entry.phase}</strong>
-        <span>cyb-react ${formatMs(entry.library)} / DOM ${formatMs(entry.dom)} / gap ${formatMs(entry.delta)}</span>
+        <span>team3-react ${formatMs(entry.library)} / DOM ${formatMs(entry.dom)} / gap ${formatMs(entry.delta)}</span>
       `;
       ui.feed.appendChild(row);
     });

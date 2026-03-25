@@ -13,7 +13,7 @@ const tabs = {
   },
   benchmark: {
     title: "Benchmark",
-    subtitle: "cyb-react의 sync reconciliation과 수동 DOM 갱신을 같은 시나리오로 비교합니다.",
+    subtitle: "team3-react의 sync reconciliation과 수동 DOM 갱신을 같은 시나리오로 비교합니다.",
     mount: mountBenchmarkTab
   }
 };
@@ -33,7 +33,7 @@ function switchTab(nextTab) {
     button.classList.toggle("is-active", button.dataset.tab === nextTab);
   });
 
-  document.title = `${tab.title} | cyb-react showcase`;
+  document.title = `${tab.title} | Week4 Team3 Project`;
   tabSubtitle.textContent = tab.subtitle;
   activeCleanup = tab.mount(outlet) || (() => {});
 }

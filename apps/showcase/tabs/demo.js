@@ -11,7 +11,7 @@ import {
   serializeVNodeTreeHTML,
   traverseVNodeBFS,
   traverseVNodeDFS
-} from "../../../packages/cyb-react/src/index.js";
+} from "../../../packages/team3-react/src/index.js";
 
 const HISTORY_LIMIT = 10;
 const FEED_LIMIT = 8;
@@ -21,7 +21,7 @@ const SAMPLE_HTML = `
     <header class="sample-scene__top" data-key="top">
       <div>
         <p>Web Design Inspiration</p>
-        <strong>cyb-react style archive</strong>
+        <strong>team3-react style archive</strong>
       </div>
       <nav class="sample-scene__nav" data-key="nav">
         <a href="#" data-key="about">About</a>

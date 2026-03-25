@@ -1,5 +1,5 @@
 {
-  "name": "cyb-react",
+  "name": "team3-react",
   "version": "0.1.0",
   "description": "A pre-Fiber React-style Virtual DOM library implemented in vanilla JavaScript.",
   "type": "module",

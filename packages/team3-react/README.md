@@ -1,6 +1,6 @@
-# cyb-react
+# team3-react
 
-`cyb-react` is a pre-Fiber React-style Virtual DOM library implemented in vanilla JavaScript.
+`team3-react` is a pre-Fiber React-style Virtual DOM library implemented in vanilla JavaScript.
 
 ## Public API
 

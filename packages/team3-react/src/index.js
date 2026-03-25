@@ -1,5 +1,5 @@
 const TEXT_ELEMENT = "TEXT_ELEMENT";
-const FRAGMENT = Symbol.for("cyb-react.fragment");
+const FRAGMENT = Symbol.for("team3-react.fragment");
 
 const roots = new WeakMap();
 
