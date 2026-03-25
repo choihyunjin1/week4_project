@@ -1046,7 +1046,28 @@ body.demo-lab-page {
 }
 
 .demo-lab-page .patch-lab__grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.9fr);
   gap: 8px;
+}
+
+.demo-lab-page .lab-card--editor {
+  grid-column: 1 / 2;
+  grid-row: 1;
+}
+
+.demo-lab-page .lab-card--tree {
+  grid-column: 2 / 3;
+  grid-row: 1;
+}
+
+.demo-lab-page .lab-card--workspace {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.demo-lab-page .lab-card--patchfeed {
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 .demo-lab-page .lab-card {
@@ -1091,8 +1112,8 @@ body.demo-lab-page {
 }
 
 .demo-lab-page .markup-editor {
-  min-height: 180px;
-  max-height: 180px;
+  min-height: 248px;
+  max-height: 248px;
   padding: 12px;
   line-height: 1.45;
   background: var(--demo-surface-soft);
@@ -1142,7 +1163,7 @@ body.demo-lab-page {
 }
 
 .demo-lab-page .lab-card--tree .traversal-card {
-  max-height: 640px;
+  max-height: 360px;
   overflow: auto;
 }
 
