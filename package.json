@@ -1,0 +1,9 @@
+{
+  "name": "cyb-react-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
+}

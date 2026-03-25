@@ -1,0 +1,6 @@
+{
+  "name": "cyb-react-showcase",
+  "private": true,
+  "type": "module",
+  "description": "Showcase app for the cyb-react package."
+}

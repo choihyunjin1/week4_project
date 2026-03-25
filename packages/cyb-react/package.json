@@ -1,0 +1,11 @@
+{
+  "name": "cyb-react",
+  "version": "0.1.0",
+  "description": "A pre-Fiber React-style Virtual DOM library implemented in vanilla JavaScript.",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  }
+}

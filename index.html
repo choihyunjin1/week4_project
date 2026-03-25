@@ -1,84 +1,84 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>통합 가상 DOM 플랫폼</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./dashboard.css">
-</head>
-<body title="전체 애플리케이션 화면입니다.">
-    <!-- Animated Aurora Background -->
-    <div class="aurora-bg" title="동적 오로라 배경 애니메이션 요소입니다."></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>cyb-react showcase</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./apps/showcase/styles.css" />
+  </head>
+  <body>
+    <div class="site-frame">
+      <div class="browser-bar">
+        <div class="browser-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="browser-address">cyb-react showcase / 127.0.0.1:4173</div>
+        <div class="browser-actions">
+          <span>Filter</span>
+          <span>Submit</span>
+          <span>Favorite</span>
+        </div>
+      </div>
 
-    <div class="app-shell" title="메인 대시보드 쉘 영역입니다.">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar" title="안내 메뉴가 있는 사이드바입니다.">
-            <div class="sidebar__brand" title="플랫폼 로고 요소입니다.">
-                <div class="logo">
-                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                    </svg>
-                    가상 DOM <span class="highlight">스튜디오</span>
-                </div>
-                <p class="subtitle" title="통합 실행 환경을 의미합니다.">통합 실행 쉘 (Unified Shell)</p>
-            </div>
+      <div class="brand-ribbon">하이퀄리티 구현 중심 Web 실험실 · Virtual DOM / Diff / Patch / Benchmark</div>
 
-            <nav class="sidebar__nav" title="앱의 모듈을 전환하는 내비게이션 바입니다.">
-                <button class="nav-btn active" data-target="./benchmark/index.html" data-title="성능 벤치마크 엔진" title="가상 DOM과 실제 DOM의 속도를 테스트할 수 있는 벤치마크 탭으로 이동합니다.">
-                    <span class="icon">🚀</span>
-                    <span class="text" title="성능 벤치마크 엔진">성능 벤치마크 엔진</span>
-                    <span class="desc" title="속도 테스트 및 벤치마크 결과를 확인합니다.">속도 테스트 및 성능 측정</span>
-                </button>
-                <button class="nav-btn" data-target="./choiyeongbeen/index.html" data-title="패치 알고리즘 실험실" title="가상 DOM의 차이점(Diff)과 패치(Patch) 과정을 배우는 실험실 탭으로 이동합니다.">
-                    <span class="icon">🧪</span>
-                    <span class="text" title="패치 알고리즘 실험실">패치 알고리즘 랩</span>
-                    <span class="desc" title="가상 DOM의 시각적 교육 도구입니다.">시각적 원리 교육 도구</span>
-                </button>
-                <button class="nav-btn" data-target="./jungchanbin/index.html" data-title="스튜디오 에디터 사례" title="뉴스레터 에디터 템플릿과 같이 가상 DOM이 실무에서 어떻게 쓰이는지 보여주는 탭으로 이동합니다.">
-                    <span class="icon">🏢</span>
-                    <span class="text" title="스튜디오 에디터 적용 사례">스튜디오 적용 사례</span>
-                    <span class="desc" title="실제 활용 가능한 수준의 에디터 예시입니다.">실무 레벨 애플리케이션</span>
-                </button>
-            </nav>
+      <header class="dashboard-header">
+        <div class="dashboard-title">
+          <p class="eyebrow">Web Design Inspiration</p>
+          <h1>cyb-react Patch Archive</h1>
+          <p class="masthead__body">
+            `cyb-react`는 Vanilla JS로 구현한 pre-Fiber React 스타일의 sync Virtual DOM 라이브러리입니다.
+            이 showcase는 라이브러리 패키지와 검증용 웹 앱을 분리해, Demo Lab과 Benchmark 탭으로 결과물을
+            시연합니다.
+          </p>
+        </div>
+        <div class="dashboard-meta">
+          <div class="meta-stat"><span>Found</span><strong>2</strong><small>tabs</small></div>
+          <div class="meta-stat"><span>Focus</span><strong>VDOM</strong><small>diff / patch</small></div>
+          <div class="meta-chip">Public API: `createElement`, `render`, `Component`</div>
+          <div class="meta-chip">Package: `/packages/cyb-react`</div>
+          <div class="meta-chip">Showcase: `/apps/showcase`</div>
+        </div>
+      </header>
 
-            <div class="sidebar__footer" title="사이드바 하단 영역으로 시스템 상태를 나타냅니다.">
-                <div class="status-indicator" title="모든 시스템 모듈이 정상적으로 가동 중이라는 상태를 의미합니다.">
-                    <div class="dot pulse"></div>
-                    모든 시스템 정상 가동 중
-                </div>
-            </div>
-        </aside>
+      <section class="overview-strip">
+        <div class="overview-pill">
+          <strong>DOM -> VDOM</strong>
+          <span>브라우저 DOM을 읽어 Virtual DOM 트리로 변환</span>
+        </div>
+        <div class="overview-pill">
+          <strong>Diff 5 cases</strong>
+          <span>CREATE, REMOVE, REPLACE, TEXT, ATTR</span>
+        </div>
+        <div class="overview-pill">
+          <strong>Patch / History</strong>
+          <span>최소 commit과 Undo / Redo 동기화</span>
+        </div>
+        <div class="overview-pill">
+          <strong>Benchmark</strong>
+          <span>sync reconciliation과 imperative DOM 비교</span>
+        </div>
+      </section>
 
-        <!-- Main Workspace (Iframe Switcher) -->
-        <main class="workspace" title="실제 앱 컨트롤 모듈이 표시되는 중앙 작업 영역입니다.">
-            <header class="workspace__header" title="보고 계신 모듈의 이름과 기능을 나타내는 상단 헤더입니다.">
-                <div title="현재 모듈 제목 정보입니다.">
-                    <h1 id="view-title" title="현재 열려있는 모듈의 이름입니다.">성능 벤치마크 엔진</h1>
-                    <p class="view-subtitle" title="플랫폼 내 안전하게 격리되어 실행되는 모듈 환경이라는 의미입니다.">독립 병합 모듈 컨텍스트</p>
-                </div>
-                <div class="workspace__actions" title="현재 구동 중인 앱을 제어하는 상단 버튼 영역입니다.">
-                    <button class="action-btn" id="reload-btn" title="현재 메뉴 새로고침: 내부 Iframe 앱을 다시 로드합니다.">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-                    </button>
-                    <button class="action-btn" id="fullscreen-btn" title="전체 화면 켜기/끄기: 앱을 전체 화면 모드로 띄워 넓게 봅니다.">
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                    </button>
-                </div>
-            </header>
-            
-            <div class="iframe-container">
-                <div class="loading-overlay active" id="loading-overlay">
-                    <div class="spinner"></div>
-                </div>
-                <!-- Frame holds the actual sub-projects without CSS collision -->
-                <iframe id="main-frame" src="./benchmark/index.html" frameborder="0"></iframe>
-            </div>
-        </main>
+      <section class="tabs-frame">
+        <div class="tabs-bar">
+          <button class="tab-button is-active" type="button" data-tab="demo">Demo Lab</button>
+          <button class="tab-button" type="button" data-tab="benchmark">Benchmark</button>
+        </div>
+        <p id="tabSubtitle" class="tabs-subtitle"></p>
+        <main id="tabOutlet"></main>
+      </section>
     </div>
 
-    <script src="./dashboard.js"></script>
-</body>
+    <script type="module" src="./apps/showcase/app.js"></script>
+  </body>
 </html>
