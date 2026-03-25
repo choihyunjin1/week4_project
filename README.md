@@ -17,7 +17,7 @@ HTML, CSS, Javascript(Vanilla)로 **Virtual DOM 라이브러리**를 직접 구�
 1. Virtual DOM / Diff 알고리즘이 적용된 웹페이지를 각자 구현한 후 하나로 통합했습니다.
 
 2. Benchmark 성능 검증은 각각 구현한 작업물들을 합친 후 적용하였습니다. 
-   Virtual DOM 방식과 직접 DOM 조작 방식에 동시에 주입하여 두 방식의 처리 시간과 DOM 갱신 비용을 비교할 수 있도록 구현했습니다.
+   Virtual DOM 방식과 Real DOM 조작 방식을 동시에 주입하여 두 방식의 처리 시간과 DOM 갱신 비용을 비교할 수 있도록 구현했습니다.
    
 ## 3. 실제 DOM이 느린 이유
 
