@@ -1,6 +1,6 @@
 # Week4 Team3 Project
 
-HTML, CSS, Javascript(Vanilla)로 **Virtual DOM 라이브러리**를 직접 구현하고, 이를 검증할 수 있는 Benchmark 페이지를 함께 만든 프로젝트입니다.
+HTML, CSS, Javascript(Vanilla)로 **Virtual DOM 라이브러리**를 직접 구현하고, 이를 검증할 수 있는 Benchmark 페이지를 만든 프로젝트를 진행하였습니다.
 
 이 프로젝트의 목적은 단순히 개념을 정리하는 것이 아니라, 브라우저의 실제 DOM이 어떻게 동작하는지 이해하고, 그 위에서 Virtual DOM과 Diff 알고리즘이 왜 필요한지 직접 구현과 실험을 통해 확인하는 데 있습니다.
 
